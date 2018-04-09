@@ -243,6 +243,26 @@ contract('ModuleRegistry', accounts => {
             }
             assert.ok(errorThrown, message);
         });
+
+        it("Should add lots of modules to module list, and remain useable", async() => {
+            let repeats = 1000;
+            for (let i = 0; i < repeats; i++) {
+              let module = await GeneralTransferManagerFactory.new(I_PolyToken.address, {from:account_polymath});
+              await I_ModuleRegistry.registerModule(module.address, { from: account_polymath });
+              console.log("Added: " + module.address);
+            }
+            let errorThrown = false;
+            try {
+              await I_ModuleRegistry.getModuleList(transferManagerKey, {gas: 9000000});
+            } catch (error) {
+              console.log(`Tx get failed due to insufficient gas: ` + error);
+              errorThrown = true;
+            }
+            assert.ok(errorThrown, message);
+            console.log((await I_ModuleRegistry.getModuleList(transferManagerKey, {gas: 10**18})).length);
+        });
+
+
     });
 
     describe("Test cases for verify module", async() => {
@@ -423,7 +443,7 @@ contract('ModuleRegistry', accounts => {
 
     describe("test cases for useModule", async() => {
 
-        it("Sholud fail in adding module. Because module is un-verified", async() => {
+        it("Should fail in adding module. Because module is un-verified", async() => {
             startTime = latestTime() + duration.seconds(5000);
             endTime = startTime + duration.days(30);
             let bytesSTO = web3.eth.abi.encodeFunctionCall(functionSignature, [startTime, endTime, cap, rate, fundRaiseType, I_PolyToken.address, account_fundsReceiver]);

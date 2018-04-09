@@ -77,4 +77,12 @@ contract ModuleRegistry is IModuleRegistry, Ownable {
         securityTokenRegistry = _securityTokenRegistry;
     }
 
+    /**
+    * @dev Helper function to return moduleList for a given module type
+    * @param _moduleType is the type of the module required
+    */
+    function getModuleList(uint8 _moduleType) public view onlyOwner returns (address[]) {
+        return moduleList[_moduleType];
+    }
+
 }
