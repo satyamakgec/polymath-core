@@ -3,27 +3,23 @@ const BigNumber = require('bignumber.js');
 const web3 = new Web3(new Web3.providers.HttpProvider("http://localhost:8545")) // Hardcoded development port
 
 const gasTestABI = [{"constant":true,"inputs":[],"name":"temp","outputs":[{"name":"","type":"uint256"}],"payable":false,"stateMutability":"view","type":"function"},{"constant":false,"inputs":[{"name":"loops","type":"uint256"}],"name":"doWork","outputs":[{"name":"","type":"uint256"}],"payable":false,"stateMutability":"nonpayable","type":"function"}];
+const gasTestAddress = "0x98914d531caa2765c478ec52cd6c16185e9ead4d";//Address on Ropsten
 
-const GasTest = artifacts.require('./GasTest.sol');
+async function doTest() {
+  const gasTestContract = new web3.eth.Contract(gasTestABI, gasTestAddress);
+  try {
+    await gasTestContract.methods.doWork(10000).send({gas: 4500000, from: "0x9a9d8ff9854a2722a76a99de6c1bb71d93898ef5"});
+  } catch (error) {
+    console.log("Send failed: " + error);
+  }
+  let data = gasTestContract.methods.doWork(10000).encodeABI();
+  let options = {
+      gas: web3.utils.toHex(100000000),
+      to: gasTestAddress,
+      data: data,
+      from: "0x9a9d8ff9854a2722a76a99de6c1bb71d93898ef5"
+  };
+  console.log(await web3.eth.call(options));
+}
 
-contract('GasTest', accounts => {
-
-  it("Should check gas can be set to anything for calls", async () => {
-    let gasTest = await GasTest.new();
-    const gasTestContract = new web3.eth.Contract(gasTestABI, gasTest.address);
-    try {
-      console.log(await gasTestContract.methods.doWork(2000).send({gas: 7000000, from: accounts[0]}));
-    } catch (error) {
-      console.log("Send failed: " + error);
-    }
-    let data = gasTestContract.methods.doWork(2000).encodeABI();
-    let options = {
-        gasLimit: web3.utils.toHex(10000000),
-        to: gasTest.address,
-        data: data,
-        from: accounts[0]
-    };
-    web3.eth.call(options);
-  });
-
-});
+doTest();

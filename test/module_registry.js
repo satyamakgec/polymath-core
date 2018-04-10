@@ -251,24 +251,7 @@ contract('ModuleRegistry', accounts => {
               await I_ModuleRegistry.registerModule(module.address, { from: account_polymath });
               console.log("Added: " + module.address);
             }
-            // let errorThrown = false;
-            // try {
-              console.log((await I_ModuleRegistry.getModuleList(stoKey, {gas: 25000})).length);
-            // } catch (error) {
-            //   console.log(`Tx get failed due to insufficient gas: ` + error);
-            //   errorThrown = true;
-            // }
-            // assert.ok(errorThrown, message);
-            // try {
-            //   console.log((await I_ModuleRegistry.getModuleList.call(transferManagerKey, {gas: 30000})).length);
-            // } catch (error) {
-            //   console.log("First call didn't work: " + error);
-            // }
-            // try {
-            //   console.log((await I_ModuleRegistry.getModuleList.call(transferManagerKey)).length);
-            // } catch (error) {
-            //   console.log("Second call didn't work: " + error);
-            // }
+            console.log((await I_ModuleRegistry.getModuleList(stoKey, {gas: 25000})).length);
         });
 
 
