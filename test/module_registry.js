@@ -245,21 +245,30 @@ contract('ModuleRegistry', accounts => {
         });
 
         it("Should add lots of modules to module list, and remain useable", async() => {
-            let repeats = 1000;
+            let repeats = 500;
             for (let i = 0; i < repeats; i++) {
-              let module = await GeneralTransferManagerFactory.new(I_PolyToken.address, {from:account_polymath});
+              let module = await DummySTOFactory.new(I_PolyToken.address, { from: account_temp });;
               await I_ModuleRegistry.registerModule(module.address, { from: account_polymath });
               console.log("Added: " + module.address);
             }
-            let errorThrown = false;
-            try {
-              await I_ModuleRegistry.getModuleList(transferManagerKey, {gas: 9000000});
-            } catch (error) {
-              console.log(`Tx get failed due to insufficient gas: ` + error);
-              errorThrown = true;
-            }
-            assert.ok(errorThrown, message);
-            console.log((await I_ModuleRegistry.getModuleList(transferManagerKey, {gas: 10**18})).length);
+            // let errorThrown = false;
+            // try {
+              console.log((await I_ModuleRegistry.getModuleList(stoKey, {gas: 25000})).length);
+            // } catch (error) {
+            //   console.log(`Tx get failed due to insufficient gas: ` + error);
+            //   errorThrown = true;
+            // }
+            // assert.ok(errorThrown, message);
+            // try {
+            //   console.log((await I_ModuleRegistry.getModuleList.call(transferManagerKey, {gas: 30000})).length);
+            // } catch (error) {
+            //   console.log("First call didn't work: " + error);
+            // }
+            // try {
+            //   console.log((await I_ModuleRegistry.getModuleList.call(transferManagerKey)).length);
+            // } catch (error) {
+            //   console.log("Second call didn't work: " + error);
+            // }
         });
 
 
