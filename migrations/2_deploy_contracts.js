@@ -5,7 +5,7 @@ const CappedSTOFactory = artifacts.require('./CappedSTOFactory.sol')
 const SecurityTokenRegistry = artifacts.require('./SecurityTokenRegistry.sol')
 const TickerRegistry = artifacts.require('./TickerRegistry.sol')
 const STVersionProxy001 = artifacts.require('./tokens/STVersionProxy001.sol')
-const DevPolyToken = artifacts.require('./helpers/PolyToken.sol')
+const DevPolyToken = artifacts.require('./tokens/PolyTokenFaucet.sol')
 let PolyToken
 
 const Web3 = require('web3')

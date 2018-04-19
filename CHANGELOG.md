@@ -1,11 +1,12 @@
 # Changelog
 All notable changes to this project will be documented in this file.   
 
-__1.0.1__ __17-04-18__
+[__1.0.1__]((https://www.npmjs.com/package/polymath-core?activeTab=readme)) __17-04-18__
 
 ## Changed
 
 * Fixed `capReached()` which was checking fundsRaised agains cap, but the cap is expressed in tokens.
+* All `trasferFrom()` function for the poly get wrapped in to the require validation. 
 
 
 ## [Unreleased](https://github.com/PolymathNetwork/polymath-core/compare/npm-publish-2...master)
