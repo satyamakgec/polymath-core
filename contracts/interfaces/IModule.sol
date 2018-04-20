@@ -1,4 +1,4 @@
-pragma solidity ^0.4.21;
+pragma solidity ^0.4.23;
 
 import "./ISecurityToken.sol";
 import "./IModuleFactory.sol";
@@ -15,7 +15,7 @@ contract IModule {
 
     ERC20 public polyToken;
 
-    function IModule(address _securityToken, address _polyAddress) public {
+    constructor (address _securityToken, address _polyAddress) public {
         securityToken = _securityToken;
         factory = msg.sender;
         polyToken = ERC20(_polyAddress);
@@ -27,29 +27,29 @@ contract IModule {
     modifier withPerm(bytes32 _perm) {
         bool isOwner = msg.sender == ISecurityToken(securityToken).owner();
         bool isFactory = msg.sender == factory;
-        require(isOwner||isFactory||ISecurityToken(securityToken).checkPermission(msg.sender, address(this), _perm));
+        require(isOwner||isFactory||ISecurityToken(securityToken).checkPermission(msg.sender, address(this), _perm), "msg.sender is not a valid entity");
         _;
     }
 
     modifier onlyOwner {
-        require(msg.sender == ISecurityToken(securityToken).owner());
+        require(msg.sender == ISecurityToken(securityToken).owner(), "msg.sender is not a owner");
         _;
     }
 
     modifier onlyFactory {
-        require(msg.sender == factory);
+        require(msg.sender == factory, "msg.sender is not a factoy");
         _;
     }
 
     modifier onlyFactoryOwner {
-        require(msg.sender == IModuleFactory(factory).owner());
+        require(msg.sender == IModuleFactory(factory).owner(), "msg.sender is not the factoy owner");
         _;
     }
 
     function getPermissions() public view returns(bytes32[]);
 
     function takeFee(uint256 _amount) public withPerm(FEE_ADMIN) returns(bool) {
-        require(polyToken.transferFrom(address(this), IModuleFactory(factory).owner(), _amount));
+        require(polyToken.transferFrom(address(this), IModuleFactory(factory).owner(), _amount), "Failed transferFrom because of sufficent Allowance is not provided");
         return true;
     }
 }

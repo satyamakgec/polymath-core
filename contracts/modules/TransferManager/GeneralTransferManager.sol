@@ -1,4 +1,4 @@
-pragma solidity ^0.4.21;
+pragma solidity ^0.4.23;
 
 import "./ITransferManager.sol";
 
@@ -51,7 +51,7 @@ contract GeneralTransferManager is ITransferManager {
         uint256 _toTime
     );
 
-    function GeneralTransferManager(address _securityToken, address _polyAddress)
+    constructor (address _securityToken, address _polyAddress)
     public
     IModule(_securityToken, _polyAddress)
     {
@@ -123,8 +123,8 @@ contract GeneralTransferManager is ITransferManager {
         uint256[] _fromTimes,
         uint256[] _toTimes
     ) public withPerm(WHITELIST) {
-        require(_investors.length == _fromTimes.length);
-        require(_fromTimes.length == _toTimes.length);
+        require(_investors.length == _fromTimes.length, "Length of arrays are un-equal");
+        require(_fromTimes.length == _toTimes.length, "Length of arrays are un-equal");
         for (uint256 i = 0; i < _investors.length; i++) {
             modifyWhitelist(_investors[i], _fromTimes[i], _toTimes[i]);
         }

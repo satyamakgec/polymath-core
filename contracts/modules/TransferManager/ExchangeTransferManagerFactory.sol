@@ -1,4 +1,4 @@
-pragma solidity ^0.4.21;
+pragma solidity ^0.4.23;
 
 import "./ExchangeTransferManager.sol";
 import "../../interfaces/IModuleFactory.sol";
@@ -6,18 +6,18 @@ import "../../interfaces/IModuleFactory.sol";
 
 contract ExchangeTransferManagerFactory is IModuleFactory {
 
-    function ExchangeTransferManagerFactory(address _polyAddress) public
-      IModuleFactory(_polyAddress)
+    constructor (address _polyAddress) public
+    IModuleFactory(_polyAddress)
     {
 
     }
 
     function deploy(bytes _data) external returns(address) {
         if(getCost() > 0)
-            require(polyToken.transferFrom(msg.sender, owner, getCost()));
+            require(polyToken.transferFrom(msg.sender, owner, getCost()), "Failed transferFrom because of sufficent Allowance is not provided");
         ExchangeTransferManager exchangeTransferManager = new ExchangeTransferManager(msg.sender, address(polyToken));
-        require(getSig(_data) == exchangeTransferManager.getInitFunction());
-        require(address(exchangeTransferManager).call(_data));
+        require(getSig(_data) == exchangeTransferManager.getInitFunction(), "Provided data is not valid");
+        require(address(exchangeTransferManager).call(_data), "Un-successfull call");
         return address(exchangeTransferManager);
 
     }
@@ -30,7 +30,7 @@ contract ExchangeTransferManagerFactory is IModuleFactory {
         return 2;
     }
 
-    function getName() public view returns(bytes32) {
+    function getName() public view returns(string) {
         return "ExchangeTransferManager";
     }
 

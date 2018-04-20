@@ -1,4 +1,4 @@
-pragma solidity ^0.4.21;
+pragma solidity ^0.4.23;
 
 import "./GeneralPermissionManager.sol";
 import "../../interfaces/IModuleFactory.sol";
@@ -6,15 +6,15 @@ import "../../interfaces/IModuleFactory.sol";
 
 contract GeneralPermissionManagerFactory is IModuleFactory {
 
-    function GeneralPermissionManagerFactory(address _polyAddress) public
-      IModuleFactory(_polyAddress)
+    constructor (address _polyAddress) public
+    IModuleFactory(_polyAddress)
     {
 
     }
 
     function deploy(bytes /* _data */) external returns(address) {
         if(getCost() > 0)
-            require(polyToken.transferFrom(msg.sender, owner, getCost()));
+            require(polyToken.transferFrom(msg.sender, owner, getCost()), "Failed transferFrom because of sufficent Allowance is not provided");
         return address(new GeneralPermissionManager(msg.sender, address(polyToken)));
     }
 
@@ -26,7 +26,7 @@ contract GeneralPermissionManagerFactory is IModuleFactory {
         return 1;
     }
 
-    function getName() public view returns(bytes32) {
+    function getName() public view returns(string) {
         return "GeneralPermissionManager";
     }
 

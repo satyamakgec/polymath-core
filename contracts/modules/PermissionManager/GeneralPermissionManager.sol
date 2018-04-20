@@ -1,4 +1,4 @@
-pragma solidity ^0.4.21;
+pragma solidity ^0.4.23;
 
 import "./IPermissionManager.sol";
 
@@ -25,7 +25,7 @@ contract GeneralPermissionManager is IPermissionManager {
     event LogAddPermission(address _delegate, bytes32 _details, uint256 _timestamp);
 
     /// @notice constructor
-    function GeneralPermissionManager(address _securityToken, address _polyAddress) public
+    constructor (address _securityToken, address _polyAddress) public
     IModule(_securityToken, _polyAddress)
     {
     }
@@ -80,7 +80,7 @@ contract GeneralPermissionManager is IPermissionManager {
     withPerm(CHANGE_PERMISSION)
     returns(bool)
     {
-        require(delegateDetails[_delegate] != bytes32(0));
+        require(delegateDetails[_delegate] != bytes32(0), "Delegate details should not equal to 0");
         perms[_module][_delegate][_perm] = _valid;
         emit LogChangePermission(_delegate, _module, _perm, _valid, now);
         return true;
