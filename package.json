@@ -1,6 +1,6 @@
 {
   "name": "polymath-core",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Polymath Network Core Smart Contracts",
   "main": "truffle.js",
   "directories": {
@@ -18,6 +18,8 @@
     "ganache-cli": "node_modules/.bin/ganache-cli -i 15 --gasLimit 50000000000",
     "migrate:local": "truffle migrate --network=development --reset --all",
     "migrate:ropsten": "truffle migrate --network=ropsten --reset --all",
+    "migrate:kovan": "truffle migrate --network=kovan --reset --all",
+    "migrate:rinkeby": "truffle migrate --network=rinkeby --reset --all",
     "migrate:mainnet": "truffle migrate --network=mainnet",
     "coverage": "./node_modules/.bin/solidity-coverage",
     "flatten-modules": "sol-merger './contracts/modules/*/*.sol' ./flat/modules",

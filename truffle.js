@@ -26,6 +26,22 @@ module.exports = {
       network_id: '3', // Match any network id
       gas: 4500000,
       gasPrice: 150000000000
+    },
+    kovan: {
+      provider: new HDWalletProvider(privKey, "https://kovan.infura.io/g5xfoQ0jFSE9S5LwM1Ei"),
+      host: 'localhost',
+      port: 8545,
+      network_id: '42', // Match any network id
+      gas: 4500000,
+      gasPrice: 150000000000
+    },
+    rinkeby: {
+      provider: new HDWalletProvider(privKey, "https://rinkeby.infura.io/g5xfoQ0jFSE9S5LwM1Ei"),
+      host: 'localhost',
+      port: 8545,
+      network_id: '4', // Match any network id
+      gas: 4500000,
+      gasPrice: 150000000000
     }
   },
   solc: {

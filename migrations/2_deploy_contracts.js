@@ -25,7 +25,14 @@ module.exports = function (deployer, network, accounts) {
   } else if (network === 'mainnet') {
     web3 = new Web3(new Web3.providers.HttpProvider('https://mainnet.infura.io/g5xfoQ0jFSE9S5LwM1Ei'))
     PolyToken = '0x9992eC3cF6A55b00978cdDF2b27BC6882d88D1eC' // Mainnet PolyToken Address
+  } else if (network === 'kovan') {
+    web3 = new Web3(new Web3.providers.HttpProvider('https://kovan.infura.io/g5xfoQ0jFSE9S5LwM1Ei'))
+    PolyToken = '0xc5f5038a8595570fca81d87a9067eae245526bf0' // Kovan PolyToken faucet Address
+  } else if (network === 'rinkeby') {
+    web3 = new Web3(new Web3.providers.HttpProvider('https://rinkeby.infura.io/g5xfoQ0jFSE9S5LwM1Ei'))
+    PolyToken = '0x5DBBC5beE72675A4053658c3C6fC0812e61B59ca' // Rinkeby PolyToken faucet Address
   }
+
 
   // POLYMATH NETWORK Configuration :: DO THIS ONLY ONCE
   // A) Deploy the ModuleRegistry Contract (It contains the list of verified ModuleFactory)
@@ -78,7 +85,12 @@ module.exports = function (deployer, network, accounts) {
     }).then(() => {
       // N) Register the CappedSTOFactory in the ModuleRegistry to make the factory available at the protocol level.
       // So any securityToken can use that factory to generate the CappedSTOFactory contract.
-    return moduleRegistry.registerModule(CappedSTOFactory.address, {from: PolymathAccount})
+    return moduleRegistry.registerModule(CappedSTOFactory.address, {from: PolymathAccount}) 
+    }).then(() => {
+      // G) Once the CappedSTOFactory registered with the ModuleRegistry contract then for making them accessble to the securityToken
+      // contract, Factory should comes under the verified list of factories or those factories deployed by the securityToken issuers only.
+      // Here it gets verified because it is deployed by the third party account (Polymath Account) not with the issuer accounts.
+      return moduleRegistry.verifyModule(CappedSTOFactory.address, true, {from: PolymathAccount})
     }).then(() => {
         console.log('\n')
         console.log('----- Polymath Core Contracts -----')
