@@ -241,7 +241,7 @@ async function iterateModules(_moduleType) {
                 let contractTemp = new web3.eth.Contract(abiTemp, details[1]);
                 let pausedTemp = false;
                 if (_moduleType == 2 || _moduleType == 3) {
-                    let pausedTemp = await contractTemp.methods.paused().call({from: User});
+                    pausedTemp = await contractTemp.methods.paused().call({from: User});
                 }
                 modules.push(new ModuleInfo(nameTemp,_moduleType,details[1],details[2],pausedTemp,abiTemp,contractTemp));
                 counter += 1;
@@ -256,7 +256,7 @@ async function iterateModules(_moduleType) {
 }
 
 async function selectAction() {
-    let options = ['Add a module','Pause / unpause a module','Remove a module','Change module budget','Whitelist an address for a year','Mint tokens','Permanently end minting','Exit'];
+    let options = ['Add a module','Pause / Unpause a module','Remove a module','Change module budget','Whitelist an address for a year','Mint tokens','Permanently end minting','Exit'];
     let index = readlineSync.keyInSelect(options, chalk.yellow('What do you want to do?'), {cancel: false});
     console.log("\nSelected:",options[index]);
     switch (index) {
@@ -308,10 +308,64 @@ async function addModule() {
 }
 
 async function pauseModule() {
-    console.log(chalk.red(`
-    *********************************
-    This option is not yet available.
-    *********************************`));
+
+    function ModuleInfo(_module, _index) {
+        this.module = _module;
+        this.index = _index;
+    }
+    let options = [];
+    let modules = [];
+
+    async function pushModules(_numModules, _arrayModules) {
+        if (_numModules > 0) {
+            for (i=0;i<_numModules;i+=1) {
+                options.push(`${_arrayModules[i].name} is ${(_arrayModules[i].paused)?'Paused':'Unpaused'}`);
+                modules.push(new ModuleInfo(_arrayModules[i],i));
+            }
+        }
+    }
+
+    pushModules(numTM,tmModules);
+    pushModules(numSTO,stoModules);
+
+    let index = readlineSync.keyInSelect(options, chalk.yellow('Which module whould you like to pause or unpause?'), {cancel: false});
+    console.log("\nSelected:",options[index]);
+
+    let selected = modules[index].module
+    if (selected.type == 3) {
+        if (selected.paused) {
+            let endTime = await selected.contract.methods.endTime().call({ from: User });
+            let GAS = Math.round(1.2 * (await selected.contract.methods.unpause(endTime).estimateGas({from: User})));
+            console.log(chalk.black.bgYellowBright(`---- Transaction executed: unpause - Gas limit provided: ${GAS} ----`));
+            await selected.contract.methods.unpause(endTime).send({from: User, gas: GAS, gasPrice: DEFAULT_GAS_PRICE })
+            .on('receipt', function(receipt){
+                console.log(chalk.green(`\nSuccessfully unpaused ${selected.name}.`));
+            });
+        } else {
+            let GAS = Math.round(1.2 * (await selected.contract.methods.pause().estimateGas({from: User})));
+            console.log(chalk.black.bgYellowBright(`---- Transaction executed: pause - Gas limit provided: ${GAS} ----`));
+            await selected.contract.methods.pause().send({from: User, gas: GAS, gasPrice: DEFAULT_GAS_PRICE })
+            .on('receipt', function(receipt){
+                console.log(chalk.green(`\nSuccessfully paused ${selected.name}.`));
+            });
+        }
+    } else if (selected.type == 2) {
+        if (selected.paused) {
+            let GAS = Math.round(1.2 * (await selected.contract.methods.unpause().estimateGas({from: User})));
+            console.log(chalk.black.bgYellowBright(`---- Transaction executed: unpause - Gas limit provided: ${GAS} ----`));
+            await selected.contract.methods.unpause().send({from: User, gas: GAS, gasPrice: DEFAULT_GAS_PRICE })
+            .on('receipt', function(receipt){
+                console.log(chalk.green(`\nSuccessfully unpaused ${selected.name}.`));
+            });
+        } else {
+            let GAS = Math.round(1.2 * (await selected.contract.methods.pause().estimateGas({from: User})));
+            console.log(chalk.black.bgYellowBright(`---- Transaction executed: pause - Gas limit provided: ${GAS} ----`));
+            await selected.contract.methods.pause().send({from: User, gas: GAS, gasPrice: DEFAULT_GAS_PRICE })
+            .on('receipt', function(receipt){
+                console.log(chalk.green(`\nSuccessfully paused ${selected.name}.`));
+            });
+        }
+    }
     backToMenu();
 }
 
