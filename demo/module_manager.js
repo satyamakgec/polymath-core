@@ -217,12 +217,13 @@ async function displayModules() {
 
 async function iterateModules(_moduleType) {
 
-    function ModuleInfo(_name, _moduleType, _address, _locked, _paused, _abi, _contract) {
+    function ModuleInfo(_name, _moduleType, _address, _locked, _paused, _budget, _abi, _contract) {
         this.name = _name;
         this.type = _moduleType;
         this.address = _address;
         this.locked = _locked;
         this.paused = _paused;
+        this.budget = _budget;
         this.abi = _abi;
         this.contract = _contract;
     }
@@ -237,13 +238,16 @@ async function iterateModules(_moduleType) {
             details = await securityToken.methods.getModule(_moduleType,counter).call({from: User});
             if (details[1] != "0x0000000000000000000000000000000000000000") {
                 let nameTemp = web3.utils.hexToUtf8(details[0]);
+                let addressTemp = details[1]
+                let budgetTemp = await polyToken.methods.allowance(User,addressTemp).call({from: User});
+                console.log(budgetTemp)
                 let abiTemp = JSON.parse(require('fs').readFileSync(`./build/contracts/${nameTemp}.json`).toString()).abi;
-                let contractTemp = new web3.eth.Contract(abiTemp, details[1]);
+                let contractTemp = new web3.eth.Contract(abiTemp, addressTemp);
                 let pausedTemp = false;
                 if (_moduleType == 2 || _moduleType == 3) {
                     pausedTemp = await contractTemp.methods.paused().call({from: User});
                 }
-                modules.push(new ModuleInfo(nameTemp,_moduleType,details[1],details[2],pausedTemp,abiTemp,contractTemp));
+                modules.push(new ModuleInfo(nameTemp,_moduleType,addressTemp,details[2],pausedTemp,budgetTemp,abiTemp,contractTemp));
                 counter += 1;
             } else {
                 endModule = true;
@@ -331,7 +335,8 @@ async function pauseModule() {
     let index = readlineSync.keyInSelect(options, chalk.yellow('Which module whould you like to pause or unpause?'), {cancel: false});
     console.log("\nSelected:",options[index]);
 
-    let selected = modules[index].module
+    let selected = modules[index].module;
+
     if (selected.type == 3) {
         if (selected.paused) {
             let endTime = await selected.contract.methods.endTime().call({ from: User });
@@ -404,10 +409,41 @@ async function removeModule() {
 }
 
 async function changeBudget() {
-    console.log(chalk.red(`
-    *********************************
-    This option is not yet available.
-    *********************************`));
+
+    function ModuleInfo(_module, _index) {
+        this.module = _module;
+        this.index = _index;
+    }
+    let options = [];
+    let modules = [];
+
+    async function pushModules(_numModules, _arrayModules) {
+        if (_numModules > 0) {
+            for (i=0;i<_numModules;i+=1) {
+                options.push(`${_arrayModules[i].name} has a budget of ${_arrayModules[i].budget} POLY`);
+                modules.push(new ModuleInfo(_arrayModules[i],i));
+            }
+        }
+    }
+
+    pushModules(numPM,pmModules);
+    pushModules(numTM,tmModules);
+    pushModules(numSTO,stoModules);
+    pushModules(numCP,cpModules);
+
+    let index = readlineSync.keyInSelect(options, chalk.yellow('For which module whould you like to change the budget?'), {cancel: false});
+    console.log("\nSelected:",options[index]);
+    let newBudget = readlineSync.question(chalk.yellow(`Enter the new budget: `));
+    let selected = modules[index].module;
+
+    await securityToken.methods.changeModuleBudget(selected.type,modules[index].index,web3.utils.toWei(newBudget)).send({from: User})
+    .on('receipt', function(receipt){
+        console.log(chalk.green(`\nModule change successful for.`));
+        console.log(receipt.events);
+    });
+
+    console.log(await polyToken.methods.allowance(User,selected.address).call({from: User}));
+
     backToMenu();
 }
 
