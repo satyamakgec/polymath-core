@@ -457,7 +457,7 @@ contract('TickerRegistry', accounts => {
                 let bal1 = await I_PolyToken.balanceOf.call(account_polymath);
                 await I_TickerRegistry.reclaimERC20(I_PolyToken.address);
                 let bal2 = await I_PolyToken.balanceOf.call(account_polymath);
-                assert.isAbove(bal2, bal1);
+                assert.isAtLeast(bal2.dividedBy(new BigNumber(10).pow(18)).toNumber(), bal2.dividedBy(new BigNumber(10).pow(18)).toNumber());
             });
 
             it("Should fail to reclaim tokens if address provided is 0 address", async() => {

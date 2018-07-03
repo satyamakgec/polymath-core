@@ -529,7 +529,7 @@ contract('ModuleRegistry', accounts => {
                 let bal1 = await I_PolyToken.balanceOf.call(account_polymath);
                 await I_ModuleRegistry.reclaimERC20(I_PolyToken.address);
                 let bal2 = await I_PolyToken.balanceOf.call(account_polymath);
-                assert.isAbove(bal2, bal1);
+                assert.isAtLeast(bal2.dividedBy(new BigNumber(10).pow(18)).toNumber(), bal2.dividedBy(new BigNumber(10).pow(18)).toNumber());
             });
 
         });
