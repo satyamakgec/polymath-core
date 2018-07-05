@@ -18,6 +18,7 @@
     "ganache-cli": "node_modules/.bin/ganache-cli -i 15 --gasLimit 90000000",
     "migrate:local": "truffle migrate --network=development --reset --all",
     "migrate:ropsten": "truffle migrate --network=ropsten --reset --all",
+    "migrate:rinkeby": "truffle migrate --network=rinkeby --reset --all",
     "migrate:kovan": "truffle migrate --network=kovan --reset --all",
     "migrate:mainnet": "truffle migrate --network=mainnet",
     "coverage": "scripts/coverage.sh",
@@ -60,6 +61,7 @@
     "readline-sync": "^1.4.9",
     "shelljs": "^0.8.2",
     "truffle-contract": "^3.0.4",
+    "truffle-hdwallet-provider": "0.0.5",
     "truffle-hdwallet-provider-privkey": "^0.1.0",
     "web3": "^1.0.0-beta.33"
   },

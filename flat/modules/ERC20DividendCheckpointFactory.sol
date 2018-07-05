@@ -520,44 +520,73 @@ contract IModule {
 }
 
 /**
- * @title Interface to be implemented by all permission manager modules
+ * @title Interface to be implemented by all checkpoint modules
  */
-contract IPermissionManager is IModule {
-
-    function checkPermission(address _delegate, address _module, bytes32 _perm) public view returns(bool);
-
-    function changePermission(address _delegate, address _module, bytes32 _perm, bool _valid) public returns(bool);
-
-    function getDelegateDetails(address _delegate) public view returns(bytes32);
+contract ICheckpoint is IModule {
 
 }
 
-/////////////////////
-// Module permissions
-/////////////////////
-//                          Owner       CHANGE_PERMISSION
-// addPermission              X               X
-// changePermission           X               X
-//
+/**
+ * @title Math
+ * @dev Assorted math operations
+ */
+library Math {
+  function max64(uint64 a, uint64 b) internal pure returns (uint64) {
+    return a >= b ? a : b;
+  }
+
+  function min64(uint64 a, uint64 b) internal pure returns (uint64) {
+    return a < b ? a : b;
+  }
+
+  function max256(uint256 a, uint256 b) internal pure returns (uint256) {
+    return a >= b ? a : b;
+  }
+
+  function min256(uint256 a, uint256 b) internal pure returns (uint256) {
+    return a < b ? a : b;
+  }
+}
 
 /**
- * @title Permission Manager module for core permissioning functionality
+ * @title Checkpoint module for issuing ERC20 dividends
  */
-contract GeneralPermissionManager is IPermissionManager {
+contract ERC20DividendCheckpoint is ICheckpoint {
+    using SafeMath for uint256;
 
-    // Mapping used to hold the permissions on the modules provided to delegate
-    mapping (address => mapping (address => mapping (bytes32 => bool))) public perms;
-    // Mapping hold the delagate details
-    mapping (address => bytes32) public delegateDetails;
-    // Permission flag
-    bytes32 public constant CHANGE_PERMISSION = "CHANGE_PERMISSION";
+    struct Dividend {
+      uint256 checkpointId;
+      uint256 created; // Time at which the dividend was created
+      uint256 maturity; // Time after which dividend can be claimed - set to 0 to bypass
+      uint256 expiry;  // Time until which dividend can be claimed - after this time any remaining amount can be withdrawn by issuer - set to very high value to bypass
+      address token; // Address of ERC20 token that dividend is denominated in
+      uint256 amount; // Dividend amount in base token amounts
+      uint256 claimedAmount; // Amount of dividend claimed so far
+      uint256 totalSupply; // Total supply at the associated checkpoint (avoids recalculating this)
+      bool reclaimed;
+      mapping (address => bool) claimed; // List of addresses which have claimed dividend
+    }
 
-    /// Event emitted after any permission get changed for the delegate
-    event LogChangePermission(address _delegate, address _module, bytes32 _perm, bool _valid, uint256 _timestamp);
-    /// Use to notify when delegate is added in permission manager contract
-    event LogAddPermission(address _delegate, bytes32 _details, uint256 _timestamp);
+    // List of all dividends
+    Dividend[] public dividends;
 
-    /// @notice constructor
+    event ERC20DividendDeposited(address indexed _depositor, uint256 _checkpointId, uint256 _created, uint256 _maturity, uint256 _expiry, address _token, uint256 _amount, uint256 _totalSupply, uint256 _dividendIndex);
+    event ERC20DividendClaimed(address indexed _payee, uint256 _dividendIndex, address _token, uint256 _amount);
+    event ERC20DividendReclaimed(address indexed _claimer, uint256 _dividendIndex, address _token, uint256 _claimedAmount);
+
+    modifier validDividendIndex(uint256 _dividendIndex) {
+        require(_dividendIndex < dividends.length, "Incorrect dividend index");
+        require(now >= dividends[_dividendIndex].maturity, "Dividend maturity is in the future");
+        require(now < dividends[_dividendIndex].expiry, "Dividend expiry is in the past");
+        require(!dividends[_dividendIndex].reclaimed, "Dividend has been reclaimed by issuer");
+        _;
+    }
+
+    /**
+     * @notice Constructor
+     * @param _securityToken Address of the security token
+     * @param _polyAddress Address of the polytoken
+     */
     constructor (address _securityToken, address _polyAddress) public
     IModule(_securityToken, _polyAddress)
     {
@@ -572,85 +601,205 @@ contract GeneralPermissionManager is IPermissionManager {
     }
 
     /**
-    * @notice use to check the permission on delegate corresponds to module contract address
-    * @param _delegate Ethereum address of the delegate
-    * @param _module Ethereum contract address of the module
-    * @param _perm Permission flag
-    * @return bool
-    */
-    function checkPermission(address _delegate, address _module, bytes32 _perm) public view returns(bool) {
-        if (delegateDetails[_delegate] != bytes32(0)) {
-            return perms[_module][_delegate][_perm];
-        }else
-            return false;
+     * @notice Creates a dividend and checkpoint for the dividend
+     * @param _maturity Time from which dividend can be paid
+     * @param _expiry Time until dividend can no longer be paid, and can be reclaimed by issuer
+     * @param _token Address of ERC20 token in which dividend is to be denominated
+     * @param _amount Amount of specified token for dividend
+     */
+    function createDividend(uint256 _maturity, uint256 _expiry, address _token, uint256 _amount) public onlyOwner {
+        require(_expiry > _maturity);
+        require(_expiry > now);
+        require(_token != address(0));
+        require(_amount > 0);
+        require(ERC20(_token).transferFrom(msg.sender, address(this), _amount), "Unable to transfer tokens for dividend");
+        uint256 dividendIndex = dividends.length;
+        uint256 checkpointId = ISecurityToken(securityToken).createCheckpoint();
+        uint256 currentSupply = ISecurityToken(securityToken).totalSupply();
+        dividends.push(
+          Dividend(
+            checkpointId,
+            now,
+            _maturity,
+            _expiry,
+            _token,
+            _amount,
+            0,
+            currentSupply,
+            false
+          )
+        );
+        emit ERC20DividendDeposited(msg.sender, checkpointId, now, _maturity, _expiry, _token, _amount, currentSupply, dividendIndex);
     }
 
     /**
-    * @notice use to add the details of the delegate
-    * @param _delegate Ethereum address of the delegate
-    * @param _details Details about the delegate i.e `Belongs to financial firm`
-    */
-    function addPermission(address _delegate, bytes32 _details) public withPerm(CHANGE_PERMISSION) {
-        delegateDetails[_delegate] = _details;
-        emit LogAddPermission(_delegate, _details, now);
+     * @notice Creates a dividend with a provided checkpoint
+     * @param _maturity Time from which dividend can be paid
+     * @param _expiry Time until dividend can no longer be paid, and can be reclaimed by issuer
+     * @param _token Address of ERC20 token in which dividend is to be denominated
+     * @param _amount Amount of specified token for dividend
+     * @param _checkpointId Checkpoint id from which to create dividends
+     */
+    function createDividendWithCheckpoint(uint256 _maturity, uint256 _expiry, address _token, uint256 _amount, uint256 _checkpointId) payable public onlyOwner {
+        require(_expiry > _maturity);
+        require(_expiry > now);
+        require(_checkpointId <= ISecurityToken(securityToken).currentCheckpointId());
+        uint256 dividendIndex = dividends.length;
+        uint256 currentSupply = ISecurityToken(securityToken).totalSupplyAt(_checkpointId);
+        require(ERC20(_token).transferFrom(msg.sender, address(this), _amount), "Unable to transfer tokens for dividend");
+        dividends.push(
+          Dividend(
+            _checkpointId,
+            now,
+            _maturity,
+            _expiry,
+            _token,
+            _amount,
+            0,
+            currentSupply,
+            false
+          )
+        );
+        emit ERC20DividendDeposited(msg.sender, _checkpointId, now, _maturity, _expiry, _token, _amount, currentSupply, dividendIndex);
     }
 
-  /**
-    * @notice Use to provide/change the permission to the delegate corresponds to the module contract
-    * @param _delegate Ethereum address of the delegate
-    * @param _module Ethereum contract address of the module
-    * @param _perm Permission flag
-    * @param _valid Bool flag use to switch on/off the permission
-    * @return bool
-    */
-    function changePermission(
-        address _delegate,
-        address _module,
-        bytes32 _perm,
-        bool _valid
-    )
-    public
-    withPerm(CHANGE_PERMISSION)
-    returns(bool)
+    /**
+     * @notice Issuer can push dividends to provided addresses
+     * @param _dividendIndex Dividend to push
+     * @param _payees Addresses to which to push the dividend
+     */
+    function pushDividendPaymentToAddresses(uint256 _dividendIndex, address[] _payees) public onlyOwner validDividendIndex(_dividendIndex) {
+        Dividend storage dividend = dividends[_dividendIndex];
+        for (uint256 i = 0; i < _payees.length; i++) {
+            if (!dividend.claimed[_payees[i]]) {
+                _payDividend(_payees[i], dividend, _dividendIndex);
+            }
+        }
+    }
+
+    /**
+     * @notice Issuer can push dividends using the investor list from the security token
+     * @param _dividendIndex Dividend to push
+     * @param _start Index in investor list at which to start pushing dividends
+     * @param _iterations Number of addresses to push dividends for
+     */
+    function pushDividendPayment(uint256 _dividendIndex, uint256 _start, uint256 _iterations) public onlyOwner validDividendIndex(_dividendIndex) {
+        Dividend storage dividend = dividends[_dividendIndex];
+        uint256 numberInvestors = ISecurityToken(securityToken).getInvestorsLength();
+        for (uint256 i = _start; i < Math.min256(numberInvestors, _start.add(_iterations)); i++) {
+            address payee = ISecurityToken(securityToken).investors(i);
+            if (!dividend.claimed[payee]) {
+                _payDividend(payee, dividend, _dividendIndex);
+            }
+        }
+    }
+
+    /**
+     * @notice Investors can pull their own dividends
+     * @param _dividendIndex Dividend to pull
+     */
+    function pullDividendPayment(uint256 _dividendIndex) public validDividendIndex(_dividendIndex)
     {
-        require(delegateDetails[_delegate] != bytes32(0), "Delegate details not set");
-        perms[_module][_delegate][_perm] = _valid;
-        emit LogChangePermission(_delegate, _module, _perm, _valid, now);
-        return true;
+        Dividend storage dividend = dividends[_dividendIndex];
+        require(!dividend.claimed[msg.sender], "Dividend already reclaimed");
+        _payDividend(msg.sender, dividend, _dividendIndex);
     }
 
     /**
-    * @notice Use to get the details of the delegate
-    * @param _delegate Ethereum address of the delegate
-    * @return Details of the delegate
-    */
-    function getDelegateDetails(address _delegate) public view returns(bytes32) {
-        return delegateDetails[_delegate];
+     * @notice Internal function for paying dividends
+     * @param _payee address of investor
+     * @param _dividend storage with previously issued dividends
+     * @param _dividendIndex Dividend to pay
+     */
+    function _payDividend(address _payee, Dividend storage _dividend, uint256 _dividendIndex) internal {
+        uint256 claim = calculateDividend(_dividendIndex, _payee);
+        _dividend.claimed[_payee] = true;
+        _dividend.claimedAmount = claim.add(_dividend.claimedAmount);
+        if (claim > 0) {
+            require(ERC20(_dividend.token).transfer(_payee, claim), "Unable to transfer tokens");
+            emit ERC20DividendClaimed(_payee, _dividendIndex, _dividend.token, claim);
+        }
     }
 
     /**
-    * @notice Use to get the Permission flag related the `this` contract
-    * @return Array of permission flags
-    */
+     * @notice Issuer can reclaim remaining unclaimed dividend amounts, for expired dividends
+     * @param _dividendIndex Dividend to reclaim
+     */
+    function reclaimDividend(uint256 _dividendIndex) public onlyOwner {
+        require(_dividendIndex < dividends.length, "Incorrect dividend index");
+        require(now >= dividends[_dividendIndex].expiry, "Dividend expiry is in the future");
+        require(!dividends[_dividendIndex].reclaimed, "Dividend already claimed");
+        dividends[_dividendIndex].reclaimed = true;
+        Dividend storage dividend = dividends[_dividendIndex];
+        uint256 remainingAmount = dividend.amount.sub(dividend.claimedAmount);
+        require(ERC20(dividend.token).transfer(msg.sender, remainingAmount), "Unable to transfer tokens");
+        emit ERC20DividendReclaimed(msg.sender, _dividendIndex, dividend.token, remainingAmount);
+    }
+
+    /**
+     * @notice Calculate amount of dividends claimable
+     * @param _dividendIndex Dividend to calculate
+     * @param _payee Affected investor address
+     * @return unit256
+     */
+    function calculateDividend(uint256 _dividendIndex, address _payee) public view returns(uint256) {
+        Dividend storage dividend = dividends[_dividendIndex];
+        if (dividend.claimed[_payee]) {
+            return 0;
+        }
+        uint256 balance = ISecurityToken(securityToken).balanceOfAt(_payee, dividends[_dividendIndex].checkpointId);
+        return balance.mul(dividends[_dividendIndex].amount).div(dividends[_dividendIndex].totalSupply);
+    }
+
+    /**
+     * @notice Get the index according to the checkpoint id
+     * @param _checkpointId Checkpoint id to query
+     * @return uint256
+     */
+    function getDividendIndex(uint256 _checkpointId) public view returns(uint256[]) {
+        uint256 counter = 0;
+        for(uint256 i = 0; i < dividends.length; i++) {
+            if (dividends[i].checkpointId == _checkpointId) {
+                counter++;
+            }
+        }
+
+       uint256[] memory index = new uint256[](counter);
+       counter = 0;
+       for(uint256 j = 0; j < dividends.length; j++) {
+           if (dividends[j].checkpointId == _checkpointId) {
+               index[counter] = j;
+               counter++;
+           }
+       }
+       return index;
+    }
+
+    /**
+     * @notice Return the permissions flag that are associated with STO
+     * @return bytes32 array
+     */
     function getPermissions() public view returns(bytes32[]) {
-        bytes32[] memory allPermissions = new bytes32[](1);
-        allPermissions[0] = CHANGE_PERMISSION;
+        bytes32[] memory allPermissions = new bytes32[](0);
         return allPermissions;
     }
 
 }
 
 /**
- * @title Factory for deploying GeneralPermissionManager module
+ * @title Factory for deploying ERC20DividendCheckpoint module
  */
-contract GeneralPermissionManagerFactory is IModuleFactory {
+contract ERC20DividendCheckpointFactory is IModuleFactory {
 
     /**
      * @notice Constructor
      * @param _polyAddress Address of the polytoken
+     * @param _setupCost Setup cost of the module
+     * @param _usageCost Usage cost of the module
+     * @param _subscriptionCost Subscription cost of the module
      */
     constructor (address _polyAddress, uint256 _setupCost, uint256 _usageCost, uint256 _subscriptionCost) public
-      IModuleFactory(_polyAddress, _setupCost, _usageCost, _subscriptionCost)
+    IModuleFactory(_polyAddress, _setupCost, _usageCost, _subscriptionCost)
     {
 
     }
@@ -660,53 +809,51 @@ contract GeneralPermissionManagerFactory is IModuleFactory {
      * @return address Contract address of the Module
      */
     function deploy(bytes /* _data */) external returns(address) {
-        if(setupCost > 0)
+        if (setupCost > 0)
             require(polyToken.transferFrom(msg.sender, owner, setupCost), "Failed transferFrom because of sufficent Allowance is not provided");
-        address permissionManager = new GeneralPermissionManager(msg.sender, address(polyToken));
-        emit LogGenerateModuleFromFactory(address(permissionManager), getName(), address(this), msg.sender, now);
-        return address(permissionManager);
+        return address(new ERC20DividendCheckpoint(msg.sender, address(polyToken)));
     }
 
     /**
      * @notice Type of the Module factory
      */
     function getType() public view returns(uint8) {
-        return 1;
+        return 4;
     }
 
     /**
      * @notice Get the name of the Module
      */
     function getName() public view returns(bytes32) {
-        return "GeneralPermissionManager";
+        return "ERC20DividendCheckpoint";
     }
 
     /**
      * @notice Get the description of the Module
      */
     function getDescription() public view returns(string) {
-        return "Manage permissions within the Security Token and attached modules";
+        return "Create ERC20 dividends for token holders at a specific checkpoint";
     }
 
     /**
      * @notice Get the title of the Module
      */
     function getTitle() public  view returns(string) {
-        return "General Permission Manager";
+        return "ERC20 Dividend Checkpoint";
     }
 
     /**
      * @notice Get the Instructions that helped to used the module
      */
     function getInstructions() public view returns(string) {
-        return "Add and remove permissions for the SecurityToken and associated modules. Permission types should be encoded as bytes32 values, and attached using the withPerm modifier to relevant functions.No initFunction required.";
+        return "Create a ERC20 dividend which will be paid out to token holders proportional to their balances at the point the dividend is created";
     }
 
     /**
      * @notice Get the tags related to the module factory
      */
     function getTags() public view returns(bytes32[]) {
-        bytes32[] memory availableTags = new bytes32[](1);
+        bytes32[] memory availableTags = new bytes32[](0);
         return availableTags;
     }
 }

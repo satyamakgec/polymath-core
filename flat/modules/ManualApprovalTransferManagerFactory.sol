@@ -1,6 +1,52 @@
 pragma solidity ^0.4.23;
 
 /**
+ * @title Utility contract to allow pausing and unpausing of certain functions
+ */
+contract Pausable {
+
+    event Pause(uint256 _timestammp);
+    event Unpause(uint256 _timestamp);
+
+    bool public paused = false;
+
+    /**
+    * @notice Modifier to make a function callable only when the contract is not paused.
+    */
+    modifier whenNotPaused() {
+        require(!paused);
+        _;
+    }
+
+    /**
+    * @notice Modifier to make a function callable only when the contract is paused.
+    */
+    modifier whenPaused() {
+        require(paused);
+        _;
+    }
+
+   /**
+    * @notice called by the owner to pause, triggers stopped state
+    */
+    function _pause() internal {
+        require(!paused);
+        paused = true;
+        emit Pause(now);
+    }
+
+    /**
+    * @notice called by the owner to unpause, returns to normal state
+    */
+    function _unpause() internal {
+        require(paused);
+        paused = false;
+        emit Unpause(now);
+    }
+
+}
+
+/**
  * @title ERC20Basic
  * @dev Simpler version of ERC20 interface
  * @dev see https://github.com/ethereum/EIPs/issues/179
@@ -520,134 +566,213 @@ contract IModule {
 }
 
 /**
- * @title Interface to be implemented by all permission manager modules
+ * @title Interface to be implemented by all Transfer Manager modules
  */
-contract IPermissionManager is IModule {
+contract ITransferManager is IModule, Pausable {
 
-    function checkPermission(address _delegate, address _module, bytes32 _perm) public view returns(bool);
+    //If verifyTransfer returns:
+    //  FORCE_VALID, the transaction will always be valid, regardless of other TM results
+    //  INVALID, then the transfer should not be allowed regardless of other TM results
+    //  VALID, then the transfer is valid for this TM
+    //  NA, then the result from this TM is ignored
+    enum Result {INVALID, NA, VALID, FORCE_VALID}
 
-    function changePermission(address _delegate, address _module, bytes32 _perm, bool _valid) public returns(bool);
+    function verifyTransfer(address _from, address _to, uint256 _amount, bool _isTransfer) public returns(Result);
 
-    function getDelegateDetails(address _delegate) public view returns(bytes32);
+    function unpause() onlyOwner public {
+        super._unpause();
+    }
 
+    function pause() onlyOwner public {
+        super._pause();
+    }
 }
 
 /////////////////////
 // Module permissions
 /////////////////////
-//                          Owner       CHANGE_PERMISSION
-// addPermission              X               X
-// changePermission           X               X
-//
+//                                        Owner       TRANSFER_APPROVAL
+// addManualApproval                        X                 X
+// addManualBlocking                        X                 X
+// revokeManualApproval                     X                 X
+// revokeManualBlocking                     X                 X
 
 /**
- * @title Permission Manager module for core permissioning functionality
+ * @title Transfer Manager module for manually approving or blocking transactions between accounts
  */
-contract GeneralPermissionManager is IPermissionManager {
+contract ManualApprovalTransferManager is ITransferManager {
+    using SafeMath for uint256;
 
-    // Mapping used to hold the permissions on the modules provided to delegate
-    mapping (address => mapping (address => mapping (bytes32 => bool))) public perms;
-    // Mapping hold the delagate details
-    mapping (address => bytes32) public delegateDetails;
-    // Permission flag
-    bytes32 public constant CHANGE_PERMISSION = "CHANGE_PERMISSION";
+    //Address from which issuances come
+    address public issuanceAddress = address(0);
 
-    /// Event emitted after any permission get changed for the delegate
-    event LogChangePermission(address _delegate, address _module, bytes32 _perm, bool _valid, uint256 _timestamp);
-    /// Use to notify when delegate is added in permission manager contract
-    event LogAddPermission(address _delegate, bytes32 _details, uint256 _timestamp);
+    //Address which can sign whitelist changes
+    address public signingAddress = address(0);
 
-    /// @notice constructor
-    constructor (address _securityToken, address _polyAddress) public
+    bytes32 public constant TRANSFER_APPROVAL = "TRANSFER_APPROVAL";
+
+    //Manual approval is an allowance (that has been approved) with an expiry time
+    struct ManualApproval {
+        uint256 allowance;
+        uint256 expiryTime;
+    }
+
+    //Manual blocking allows you to specify a list of blocked address pairs with an associated expiry time for the block
+    struct ManualBlocking {
+        uint256 expiryTime;
+    }
+
+    //Store mappings of address => address with ManualApprovals
+    mapping (address => mapping (address => ManualApproval)) public manualApprovals;
+
+    //Store mappings of address => address with ManualBlockings
+    mapping (address => mapping (address => ManualBlocking)) public manualBlockings;
+
+    event LogAddManualApproval(
+        address _from,
+        address _to,
+        uint256 _allowance,
+        uint256 _expiryTime,
+        address _addedBy
+    );
+
+    event LogAddManualBlocking(
+        address _from,
+        address _to,
+        uint256 _expiryTime,
+        address _addedBy
+    );
+
+    event LogRevokeManualApproval(
+        address _from,
+        address _to,
+        address _addedBy
+    );
+
+    event LogRevokeManualBlocking(
+        address _from,
+        address _to,
+        address _addedBy
+    );
+
+    /**
+     * @notice Constructor
+     * @param _securityToken Address of the security token
+     * @param _polyAddress Address of the polytoken
+     */
+    constructor (address _securityToken, address _polyAddress)
+    public
     IModule(_securityToken, _polyAddress)
     {
     }
 
     /**
-    * @notice Init function i.e generalise function to maintain the structure of the module contract
-    * @return bytes4
-    */
+     * @notice This function returns the signature of configure function
+     */
     function getInitFunction() public returns(bytes4) {
         return bytes4(0);
     }
 
     /**
-    * @notice use to check the permission on delegate corresponds to module contract address
-    * @param _delegate Ethereum address of the delegate
-    * @param _module Ethereum contract address of the module
-    * @param _perm Permission flag
-    * @return bool
+    * @notice default implementation of verifyTransfer used by SecurityToken
+    * If the transfer request comes from the STO, it only checks that the investor is in the whitelist
+    * If the transfer request comes from a token holder, it checks that:
+    * a) Both are on the whitelist
+    * b) Seller's sale lockup period is over
+    * c) Buyer's purchase lockup is over
     */
-    function checkPermission(address _delegate, address _module, bytes32 _perm) public view returns(bool) {
-        if (delegateDetails[_delegate] != bytes32(0)) {
-            return perms[_module][_delegate][_perm];
-        }else
-            return false;
+    function verifyTransfer(address _from, address _to, uint256 _amount, bool _isTransfer) public returns(Result) {
+        // manual blocking takes precidence over manual approval
+        if (!paused) {
+            if (manualBlockings[_from][_to].expiryTime >= now) {
+                return Result.INVALID;
+            }
+            if ((manualApprovals[_from][_to].expiryTime >= now) && (manualApprovals[_from][_to].allowance >= _amount)) {
+                if (_isTransfer) {
+                    manualApprovals[_from][_to].allowance = manualApprovals[_from][_to].allowance.sub(_amount);
+                }
+                return Result.VALID;
+            }
+        }
+        return Result.NA;
     }
 
     /**
-    * @notice use to add the details of the delegate
-    * @param _delegate Ethereum address of the delegate
-    * @param _details Details about the delegate i.e `Belongs to financial firm`
+    * @notice adds a pair of addresses to manual approvals
+    * @param _from is the address from which transfers are approved
+    * @param _to is the address to which transfers are approved
+    * @param _allowance is the approved amount of tokens
+    * @param _expiryTime is the time until which the transfer is allowed
     */
-    function addPermission(address _delegate, bytes32 _details) public withPerm(CHANGE_PERMISSION) {
-        delegateDetails[_delegate] = _details;
-        emit LogAddPermission(_delegate, _details, now);
-    }
-
-  /**
-    * @notice Use to provide/change the permission to the delegate corresponds to the module contract
-    * @param _delegate Ethereum address of the delegate
-    * @param _module Ethereum contract address of the module
-    * @param _perm Permission flag
-    * @param _valid Bool flag use to switch on/off the permission
-    * @return bool
-    */
-    function changePermission(
-        address _delegate,
-        address _module,
-        bytes32 _perm,
-        bool _valid
-    )
-    public
-    withPerm(CHANGE_PERMISSION)
-    returns(bool)
-    {
-        require(delegateDetails[_delegate] != bytes32(0), "Delegate details not set");
-        perms[_module][_delegate][_perm] = _valid;
-        emit LogChangePermission(_delegate, _module, _perm, _valid, now);
-        return true;
+    function addManualApproval(address _from, address _to, uint256 _allowance, uint256 _expiryTime) public withPerm(TRANSFER_APPROVAL) {
+        //Passing a _expiryTime == 0 into this function, is equivalent to removing the manual approval.
+        require(_from != address(0), "Invalid from address");
+        require(_to != address(0), "Invalid to address");
+        require(_expiryTime > now, "Invalid expiry time");
+        manualApprovals[_from][_to] = ManualApproval(_allowance, _expiryTime);
+        emit LogAddManualApproval(_from, _to, _allowance, _expiryTime, msg.sender);
     }
 
     /**
-    * @notice Use to get the details of the delegate
-    * @param _delegate Ethereum address of the delegate
-    * @return Details of the delegate
+    * @notice adds a pair of addresses to manual blockings
+    * @param _from is the address from which transfers are blocked
+    * @param _to is the address to which transfers are blocked
+    * @param _expiryTime is the time until which the transfer is blocked
     */
-    function getDelegateDetails(address _delegate) public view returns(bytes32) {
-        return delegateDetails[_delegate];
+    function addManualBlocking(address _from, address _to, uint256 _expiryTime) public withPerm(TRANSFER_APPROVAL) {
+        //Passing a _expiryTime == 0 into this function, is equivalent to removing the manual blocking.
+        require(_from != address(0), "Invalid from address");
+        require(_to != address(0), "Invalid to address");
+        require(_expiryTime > now, "Invalid expiry time");
+        manualBlockings[_from][_to] = ManualBlocking(_expiryTime);
+        emit LogAddManualBlocking(_from, _to, _expiryTime, msg.sender);
     }
 
     /**
-    * @notice Use to get the Permission flag related the `this` contract
-    * @return Array of permission flags
+    * @notice removes a pairs of addresses from manual approvals
+    * @param _from is the address from which transfers are approved
+    * @param _to is the address to which transfers are approved
     */
+    function revokeManualApproval(address _from, address _to) public withPerm(TRANSFER_APPROVAL) {
+        require(_from != address(0), "Invalid from address");
+        require(_to != address(0), "Invalid to address");
+        delete manualApprovals[_from][_to];
+        emit LogRevokeManualApproval(_from, _to, msg.sender);
+    }
+
+    /**
+    * @notice removes a pairs of addresses from manual approvals
+    * @param _from is the address from which transfers are approved
+    * @param _to is the address to which transfers are approved
+    */
+    function revokeManualBlocking(address _from, address _to) public withPerm(TRANSFER_APPROVAL) {
+        require(_from != address(0), "Invalid from address");
+        require(_to != address(0), "Invalid to address");
+        delete manualBlockings[_from][_to];
+        emit LogRevokeManualBlocking(_from, _to, msg.sender);
+    }
+
+    /**
+     * @notice Return the permissions flag that are associated with ManualApproval transfer manager
+     */
     function getPermissions() public view returns(bytes32[]) {
         bytes32[] memory allPermissions = new bytes32[](1);
-        allPermissions[0] = CHANGE_PERMISSION;
+        allPermissions[0] = TRANSFER_APPROVAL;
         return allPermissions;
     }
-
 }
 
 /**
- * @title Factory for deploying GeneralPermissionManager module
+ * @title Factory for deploying ManualApprovalTransferManager module
  */
-contract GeneralPermissionManagerFactory is IModuleFactory {
+contract ManualApprovalTransferManagerFactory is IModuleFactory {
 
     /**
      * @notice Constructor
      * @param _polyAddress Address of the polytoken
+     * @param _setupCost Setup cost of the module
+     * @param _usageCost Usage cost of the module
+     * @param _subscriptionCost Subscription cost of the module
      */
     constructor (address _polyAddress, uint256 _setupCost, uint256 _usageCost, uint256 _subscriptionCost) public
       IModuleFactory(_polyAddress, _setupCost, _usageCost, _subscriptionCost)
@@ -655,58 +780,62 @@ contract GeneralPermissionManagerFactory is IModuleFactory {
 
     }
 
-    /**
+     /**
      * @notice used to launch the Module with the help of factory
      * @return address Contract address of the Module
      */
     function deploy(bytes /* _data */) external returns(address) {
-        if(setupCost > 0)
+        if (setupCost > 0)
             require(polyToken.transferFrom(msg.sender, owner, setupCost), "Failed transferFrom because of sufficent Allowance is not provided");
-        address permissionManager = new GeneralPermissionManager(msg.sender, address(polyToken));
-        emit LogGenerateModuleFromFactory(address(permissionManager), getName(), address(this), msg.sender, now);
-        return address(permissionManager);
+        address manualTransferManager = new ManualApprovalTransferManager(msg.sender, address(polyToken));
+        emit LogGenerateModuleFromFactory(address(manualTransferManager), getName(), address(this), msg.sender, now);
+        return address(manualTransferManager);
     }
 
     /**
      * @notice Type of the Module factory
      */
     function getType() public view returns(uint8) {
-        return 1;
+        return 2;
     }
 
     /**
      * @notice Get the name of the Module
      */
     function getName() public view returns(bytes32) {
-        return "GeneralPermissionManager";
+        return "ManualApprovalTransferManager";
     }
 
     /**
      * @notice Get the description of the Module
      */
     function getDescription() public view returns(string) {
-        return "Manage permissions within the Security Token and attached modules";
+        return "Manage transfers using single approvals / blocking";
     }
 
     /**
      * @notice Get the title of the Module
      */
-    function getTitle() public  view returns(string) {
-        return "General Permission Manager";
+    function getTitle() public view returns(string) {
+        return "Manual Approval Transfer Manager";
     }
 
     /**
      * @notice Get the Instructions that helped to used the module
      */
     function getInstructions() public view returns(string) {
-        return "Add and remove permissions for the SecurityToken and associated modules. Permission types should be encoded as bytes32 values, and attached using the withPerm modifier to relevant functions.No initFunction required.";
+        return "Allows an issuer to set manual approvals or blocks for specific pairs of addresses and amounts. Init function takes no parameters.";
     }
 
     /**
      * @notice Get the tags related to the module factory
      */
     function getTags() public view returns(bytes32[]) {
-        bytes32[] memory availableTags = new bytes32[](1);
+        bytes32[] memory availableTags = new bytes32[](2);
+        availableTags[0] = "ManualApproval";
+        availableTags[1] = "Transfer Restriction";
         return availableTags;
     }
+
+
 }

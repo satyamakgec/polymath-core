@@ -1,8 +1,8 @@
 require('babel-register');
 require('babel-polyfill');
 
-const HDWalletProvider = require("truffle-hdwallet-provider-privkey");
-// const privKey = require('fs').readFileSync('./privKey').toString();
+const HDWalletProvider = require("truffle-hdwallet-provider");
+const privKey = require('fs').readFileSync('./privKey').toString();
 
 module.exports = {
   networks: {
@@ -33,6 +33,14 @@ module.exports = {
       port: 8545,
       network_id: '42', // Match any network id
       gas: 7900000,
+      gasPrice: 10000000000
+    },
+    rinkeby: {
+      provider: new HDWalletProvider(privKey, "https://rinkeby.infura.io/g5xfoQ0jFSE9S5LwM1Ei"),
+      // host: 'localhost',
+      // port: 8545,
+      network_id: '4', // Match any network id
+      gas: 7400000,
       gasPrice: 10000000000
     },
     coverage: {

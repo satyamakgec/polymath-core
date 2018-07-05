@@ -36,6 +36,10 @@ module.exports = function (deployer, network, accounts) {
   } else if (network === 'mainnet') {
     web3 = new Web3(new Web3.providers.HttpProvider('https://mainnet.infura.io/g5xfoQ0jFSE9S5LwM1Ei'))
     PolyToken = '0x9992eC3cF6A55b00978cdDF2b27BC6882d88D1eC' // Mainnet PolyToken Address
+  } else if (network === 'rinkeby') {
+    web3 = new Web3(new Web3.providers.HttpProvider('https://rinkeby.infura.io/g5xfoQ0jFSE9S5LwM1Ei'))
+    PolymathAccount = accounts[0]
+    PolyToken = '0xd494372656a864284e2f5d0d58239ad77a9cee5f' // rinkeby network polytoken address
   }if (network === 'coverage') {
     web3 = new Web3(new Web3.providers.HttpProvider('http://localhost:8545'))
     PolymathAccount = accounts[0]
