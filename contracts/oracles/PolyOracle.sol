@@ -109,8 +109,10 @@ contract PolyOracle is usingOraclize, IOracle, Ownable {
     * @param _price POLYUSD price
     */
     function setPOLYUSD(uint256 _price) onlyOwner public {
+        emit LogPriceUpdated(_price, POLYUSD, now);
         POLYUSD = _price;
         latestUpdate = now;
+        
     }
 
     /**

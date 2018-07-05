@@ -132,7 +132,7 @@ contract USDTieredSTO is ISTO {
         require(_reserveWallet != address(0), "Zero address is not permitted for wallet");
         require(_startTime >= now && _endTime > _startTime, "Date parameters are not valid");
         require(_securityTokenRegistry != address(0), "Zero address is not permitted for security token registry");
-        require(_startingTier < _ratePerTier.length, "Invalid starting tier");
+        require(_startingTier < _ratePerTier.length, "Invalid starting tier");  // Is startingTier should automatically be the 0 index of _ratePerTier
         currentTier = _startingTier;
         startTime = _startTime;
         endTime = _endTime;
@@ -180,8 +180,7 @@ contract USDTieredSTO is ISTO {
       * @notice low level token purchase ***DO NOT OVERRIDE***
       * @param _beneficiary Address performing the token purchase
       */
-    function buyWithETH(address _beneficiary) public payable validETH {
-        require(!paused);
+    function buyWithETH(address _beneficiary) public payable validETH whenNotPaused {
         require(isOpen());
         uint256 ETHUSD = IOracle(ISecurityTokenRegistry(securityTokenRegistry).getOracle(bytes32("ETH"), bytes32("USD"))).getPrice();
         uint256 investedETH = msg.value;
