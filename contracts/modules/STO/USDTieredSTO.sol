@@ -237,11 +237,6 @@ contract USDTieredSTO is ISTO {
     }
 
     /**
-     * @notice This function returns the signature of configure function
-     * @return bytes4 Configure function signature
-     */
-    function getInitFunction() public returns (bytes4) {
-        return bytes4(keccak256("configure(uint256,uint256,uint256[],uint256[],address,uint256,uint256,uint8,uint8[],address,address)"));
     }
 
     /**
@@ -424,25 +419,56 @@ contract USDTieredSTO is ISTO {
     }
 
     /**
-     * @notice This function converts from ETH or POLY to USD
-     * @param _currency Currency key
-     * @param _amount Value to convert to USD
-     * @return uint256 Value in USD
+     * @notice This function converts between currency pairs
+     * @param _currencyFrom Currency key
+     * @param _currencyTo Currency key
+     * @param _amount Value to convert
+     * @return uint256 Value converted
      */
-    function convertToUSD(bytes32 _currency, uint256 _amount) public view returns(uint256) {
-        uint256 rate = IOracle(ISecurityTokenRegistry(securityTokenRegistry).getOracle(_currency, bytes32("USD"))).getPrice();
-        return wmul(_amount, rate);
+    function convertCurrency(bytes32 _currencyFrom, bytes32 _currencyTo, uint256 _amount) public view returns(uint256) {
+        uint256 rate = IOracle(ISecurityTokenRegistry(securityTokenRegistry).getOracle(_currencyTo, bytes32("USD"))).getPrice();
+        if (_currencyFrom == bytes32("TOKEN")) {
+            uint256 tokenToUSD = wmul(_amount, ratePerTier[currentTier]); // TOKEN * USD/TOKEN = USD
+            // TOKEN -> USD
+            if (_currencyTo == bytes32("USD")) {
+                return tokenToUSD;
+            }
+            // TOKEN -> ETH or POLY
+            if (_currencyTo == bytes32("ETH") || _currencyTo == bytes32("POLY")) {
+                return wdiv(tokenToUSD, rate); // USD / USD/ETH = ETH
+            }
+        }
+        if (_currencyFrom == bytes32("USD")) {
+            // USD -> TOKEN
+            if (_currencyTo == bytes32("TOKEN")) {
+                return wdiv(_amount, ratePerTier[currentTier]); // USD / USD/TOKEN = TOKEN
+            }
+            // USD -> ETH or POLY
+            if (_currencyTo == bytes32("ETH") || _currencyTo == bytes32("POLY")) {
+                return wdiv(_amount, rate); // USD / USD/ETH = ETH
+            }
+        }
+        if (_currencyFrom == bytes32("ETH") || _currencyFrom == bytes32("POLY")) {
+            uint256 ethToUSD = wmul(_amount, rate); // ETH * USD/ETH = USD
+            // ETH or POLY -> USD
+            if (_currencyTo == bytes32("USD")) {
+                return ethToUSD;
+            }
+            // ETH or POLY -> TOKEN
+            if (_currencyTo == bytes32("TOKEN")) {
+                return wdiv(ethToUSD, ratePerTier[currentTier]); // USD / USD/TOKEN
+            }
+
+        }
+        return 0;
     }
 
     /**
-     * @notice This function converts from USD to ETH or POLY
-     * @param _currency Currency key
-     * @param _amount Value to convert from USD
-     * @return uint256 Value in ETH or POLY
+     * @notice This function returns the signature of configure function
+     * @return bytes4 Configure function signature
      */
-    function convertFromUSD(bytes32 _currency, uint256 _amount) public view returns(uint256) {
-        uint256 rate = IOracle(ISecurityTokenRegistry(securityTokenRegistry).getOracle(_currency, bytes32("USD"))).getPrice();
-        return wdiv(_amount, rate);
+    function getInitFunction() public returns (bytes4) {
+        return bytes4(keccak256("configure(uint256,uint256,uint256[],uint256[],address,uint256,uint256,uint8,uint8[],address,address)"));
     }
 
     /**
