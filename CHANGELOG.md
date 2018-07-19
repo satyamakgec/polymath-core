@@ -1,7 +1,13 @@
 # Changelog
-All notable changes to this project will be documented in this file.   
+All notable changes to this project will be documented in this file.  
 
-# v1.2.0 - Unreleased
+# v1.2.3 - Unreleased
+[__1.2.3__](https://www.npmjs.com/package/polymath-core?activeTab=readme) __19-06-18__
+
+## Added
+* `modifyWhitelistMulti` added in `PercentageTransferManager` contract.   
+
+# v1.2.0
 
 [__1.2.0__](https://www.npmjs.com/package/polymath-core?activeTab=readme) __22-05-18__
 

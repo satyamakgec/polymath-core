@@ -28,7 +28,7 @@ module.exports = {
       gasPrice: 150000000000
     },
     kovan: {
-      // provider: new HDWalletProvider(privKey, "http://localhost:8545"),
+      //provider: new HDWalletProvider(privKey, "http://localhost:8545"),
       host: 'localhost',
       port: 8545,
       network_id: '42', // Match any network id
@@ -36,9 +36,9 @@ module.exports = {
       gasPrice: 10000000000
     },
     rinkeby: {
-      provider: new HDWalletProvider(privKey, "https://rinkeby.infura.io/g5xfoQ0jFSE9S5LwM1Ei"),
-      // host: 'localhost',
-      // port: 8545,
+      //provider: new HDWalletProvider(privKey, "https://rinkeby.infura.io/g5xfoQ0jFSE9S5LwM1Ei"),
+      host: 'localhost',
+      port: 8545,
       network_id: '4', // Match any network id
       gas: 7400000,
       gasPrice: 10000000000
