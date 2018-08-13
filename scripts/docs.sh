@@ -34,13 +34,15 @@ create_docs() {
 solidity-docgen $CORE_ROUTE $CORE_ROUTE/contracts $HOME/polymath-developer-portal/)
     echo "Successfully docs are generated..."
     echo "Transferring the API DOCS to $latestTag directory"
-    mv ../docs/api_* $latestTag 
+    mv ../../docs/api_* $latestTag 
 
     # Commit the changes
     echo "Commiting the new changes..."
     git add .
-    git commit -m "create new api docs for $latestTag" > /dev/null 2>&1
-    git push origin $latestTag > /dev/null 2>&1
+    git commit -m "create new api docs for $latestTag"
+    #git commit -m "create new api docs for $latestTag" > /dev/null 2>&1
+    #git push origin $latestTag > /dev/null 2>&1
+    git push origin $latestTag
     #git commit -m "create new api docs for $latestTag" > /dev/null 2>&1
     #git push origin $latestTag > /dev/null 2>&1
 
@@ -48,12 +50,12 @@ solidity-docgen $CORE_ROUTE $CORE_ROUTE/contracts $HOME/polymath-developer-porta
     echo "Removing the repository from the system...."
     cd ../../../
     rm -rf polymath-developer-portal
-    exit 1 
+    exit 0 
 }
 
 reject_docs() {
     echo "$latestTag docs are already exist into the $DIRECTORY"
-    exit 1
+    exit 0
 }
 
 echo "Checking the latest tag branch merge on masters"
@@ -69,16 +71,14 @@ versionNo=$(echo "$latestTag" | cut -b 2-6)
 echo "Latest tag is: $latestTag"
 
 # clone the polymath-developer-portal
-#cd ~/tmp
 
 if [ ! -d $DIRECTORY ]; then
-#git clone https://${GH_USR}:${GH_PWD}@github.com/PolymathNetwork/polymath-developer-portal.git  > /dev/null 2>&1 
-git clone https://${GH_USR}:${GH_PWD}@github.com/PolymathNetwork/polymath-developer-portal.git 
+git clone https://${GH_USR}:${GH_PWD}@github.com/PolymathNetwork/polymath-developer-portal.git  > /dev/null 2>&1 
 cd $DIRECTORY
 else
 cd $DIRECTORY
-#git pull  > /dev/null 2>&1
-git pull 
+git checkout master > /dev/null 2>&1
+git pull origin master > /dev/null 2>&1
 fi
 
 cd website
