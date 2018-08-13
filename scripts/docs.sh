@@ -68,12 +68,12 @@ versionNo=$(echo "$latestTag" | cut -b 2-6)
 #print the tag
 echo "Latest tag is: $latestTag"
 
-# clone the polymath-core-docs
+# clone the polymath-developer-portal
 #cd ~/tmp
 
 if [ ! -d $DIRECTORY ]; then
-#git clone https://${GH_USR}:${GH_PWD}@github.com/PolymathNetwork/polymath-core-docs.git  > /dev/null 2>&1 
-git clone https://${GH_USR}:${GH_PWD}@github.com/PolymathNetwork/polymath-core-docs.git 
+#git clone https://${GH_USR}:${GH_PWD}@github.com/PolymathNetwork/polymath-developer-portal.git  > /dev/null 2>&1 
+git clone https://${GH_USR}:${GH_PWD}@github.com/PolymathNetwork/polymath-developer-portal.git 
 cd $DIRECTORY
 else
 cd $DIRECTORY
