@@ -61,6 +61,7 @@
     "readline-sync": "^1.4.9",
     "shelljs": "^0.8.2",
     "solc": "^0.4.24",
+    "solidity-docgen": "^0.1.0",
     "truffle-contract": "^3.0.4",
     "truffle-hdwallet-provider-privkey": "^0.1.0",
     "web3": "^1.0.0-beta.33"
