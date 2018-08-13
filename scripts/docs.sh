@@ -31,7 +31,7 @@ create_docs() {
     echo "Generating the API documentation in branch $latestTag"
     # Command to generate the documentation using the solidity-docgen
     migrate=$(SOLC_ARGS="openzeppelin-solidity="$CORE_ROUTE"/node_modules/openzeppelin-solidity" \
-solidity-docgen $CORE_ROUTE $CORE_ROUTE/contracts $HOME/tmp/polymath-developer-portal/docs)
+solidity-docgen $CORE_ROUTE $CORE_ROUTE/contracts $HOME/polymath-developer-portal/docs)
     echo "Successfully docs are generated..."
     echo "Transferring the API DOCS to $latestTag directory"
     mv ../../docs/api_* $latestTag 
@@ -46,7 +46,7 @@ solidity-docgen $CORE_ROUTE $CORE_ROUTE/contracts $HOME/tmp/polymath-developer-p
 
     # Remove the repository
     echo "Removing the repository from the system...."
-    cd ../../../../
+    cd ../../../
     rm -rf polymath-developer-portal
     exit 1 
 }
@@ -69,7 +69,7 @@ versionNo=$(echo "$latestTag" | cut -b 2-6)
 echo "Latest tag is: $latestTag"
 
 # clone the polymath-core-docs
-cd ~/tmp
+#cd ~/tmp
 
 if [ ! -d $DIRECTORY ]; then
 #git clone https://${GH_USR}:${GH_PWD}@github.com/PolymathNetwork/polymath-core-docs.git  > /dev/null 2>&1 
