@@ -31,10 +31,10 @@ create_docs() {
     echo "Generating the API documentation in branch $latestTag"
     # Command to generate the documentation using the solidity-docgen
     migrate=$(SOLC_ARGS="openzeppelin-solidity="$CORE_ROUTE"/node_modules/openzeppelin-solidity" \
-solidity-docgen $CORE_ROUTE $CORE_ROUTE/contracts $HOME/polymath-developer-portal/docs)
+solidity-docgen $CORE_ROUTE $CORE_ROUTE/contracts $HOME/polymath-developer-portal/)
     echo "Successfully docs are generated..."
     echo "Transferring the API DOCS to $latestTag directory"
-    mv ../../docs/api_* $latestTag 
+    mv ../docs/api_* $latestTag 
 
     # Commit the changes
     echo "Commiting the new changes..."
@@ -81,7 +81,7 @@ cd $DIRECTORY
 git pull 
 fi
 
-cd docs/website
+cd website
 
 if [ ! -d $WEBSITE_DIRECTORY ]; then
 echo "Created: versioned_docs directory"
