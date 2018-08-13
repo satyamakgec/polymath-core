@@ -31,6 +31,7 @@ create_docs() {
     echo "Generating the API documentation in branch $latestTag"
     # Command to generate the documentation using the solidity-docgen
     #npm install > /dev/null 2>&1
+     
     migrate=$(SOLC_ARGS="openzeppelin-solidity="$CORE_ROUTE"/node_modules/openzeppelin-solidity" \
 solidity-docgen $CORE_ROUTE $CORE_ROUTE/contracts $CORE_ROUTE/polymath-developer-portal/)
     echo "Successfully docs are generated..."
@@ -58,7 +59,7 @@ reject_docs() {
     echo "$latestTag docs are already exist into the $DIRECTORY"
     exit 0
 }
-
+apt-get install solc@0.4.24
 echo "Checking the latest tag branch merge on masters"
 
 # Get new tags from remote
