@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
-apt update -y && apt upgrade -y
-apt install -y build-essential cmake libboost-all-dev
+sudo apt update -y && sudo apt upgrade -y
+sudo apt install -y build-essential cmake libboost-all-dev
 git clone --recursive https://github.com/ethereum/solidity.git
 cd solidity
 mkdir build && cd build
