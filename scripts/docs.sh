@@ -60,7 +60,7 @@ reject_docs() {
     exit 0
 }
 echo "doing step 1"
-cat < (echo "") | sudo add-apt-repository ppa:ethereum/ethereum
+sudo add-apt-repository -y ppa:ethereum/ethereum
 echo "doing step 2"
 sudo apt-get update -y
 echo "doing step 3"
