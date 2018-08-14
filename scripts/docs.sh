@@ -59,7 +59,7 @@ reject_docs() {
     echo "$latestTag docs are already exist into the $DIRECTORY"
     exit 0
 }
-which solc
+
 echo "doing step 1"
 echo -ne '\n' | sudo add-apt-repository ppa:ethereum/ethereum
 echo "doing step 2"
