@@ -10,6 +10,10 @@ matrix:
   fast_finish: true
   allow_failures:
   - env: SOLIDITY_COVERAGE=true
+before_install:
+- echo -ne '\n' | sudo add-apt-repository ppa:ethereum/ethereum
+- sudo apt-get -y update
+- sudo apt-get -y install solc
 before_script:
 - truffle version
 script:

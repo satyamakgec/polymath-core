@@ -60,7 +60,6 @@ reject_docs() {
     exit 0
 }
 
-bash $CORE_ROUTE/scripts/solidity.sh
 echo "Checking the latest tag branch merge on masters"
 
 # Get new tags from remote
