@@ -32,7 +32,7 @@ create_docs() {
     # Command to generate the documentation using the solidity-docgen
     #npm install > /dev/null 2>&1
      
-    migrate=$(SOLC_PATH="$CORE_ROUTE/node_modules/.bin/solcjs" \
+    migrate=$(SOLC_PATH="$CORE_ROUTE/node_modules/.bin/solcjs --abi" \
 SOLC_ARGS="openzeppelin-solidity="$CORE_ROUTE"/node_modules/openzeppelin-solidity" \
 solidity-docgen $CORE_ROUTE $CORE_ROUTE/contracts $CORE_ROUTE/polymath-developer-portal/)
     echo "Successfully docs are generated..."
