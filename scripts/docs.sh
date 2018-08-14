@@ -14,6 +14,12 @@ create_docs() {
     # getting the all available branches 
     if [ "$(git branch | grep -w $latestTag)" == "" ];
     then
+    # Check whether the branch is already present or not
+    if [ "$(git branch -r | grep "origin/$latestTag" | wc -l)" -eq 1 ];
+    then 
+    echo "$latesTag Branch is already present on remote"
+    exit 0
+    fi
     # Checkout and create the $latestTag branch
     git checkout -b $latestTag
 
@@ -40,12 +46,10 @@ solidity-docgen $CORE_ROUTE $CORE_ROUTE/contracts $CORE_ROUTE/polymath-developer
     # Commit the changes
     echo "Commiting the new changes..."
     git add .
-    #git commit -m "create new api docs for $latestTag"
-    git commit -m "create new api docs for $latestTag" > /dev/null 2>&1
-    git push origin $latestTag > /dev/null 2>&1
-    #git push origin $latestTag
     #git commit -m "create new api docs for $latestTag" > /dev/null 2>&1
     #git push origin $latestTag > /dev/null 2>&1
+    git commit -m "create new api docs for $latestTag"
+    git push origin $latestTag
 
     # Remove the repository
     echo "Removing the repository from the system...."
