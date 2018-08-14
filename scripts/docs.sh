@@ -60,12 +60,6 @@ reject_docs() {
     exit 0
 }
 
-echo "doing step 1"
-echo -ne '\n' | sudo add-apt-repository ppa:ethereum/ethereum
-echo "doing step 2"
-sudo apt-get -y update
-echo "doing step 3"
-sudo apt-get -y install solc
 which solc
 echo "Checking the latest tag branch merge on masters"
 
