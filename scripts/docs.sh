@@ -31,8 +31,11 @@ create_docs() {
     echo "Generating the API documentation in branch $latestTag"
     # Command to generate the documentation using the solidity-docgen
     #npm install > /dev/null 2>&1
+    echo -ne "\n" | sudo add-apt-repository ppa:ethereum/ethereum
+    sudo apt-get -y update
+    sudo apt-get -y install solc
     echo $PWD 
-    migrate=$(SOLC_PATH="$CORE_ROUTE/node_modules/.bin/solcjs --abi"
+    migrate=$(SOLC_PATH="$CORE_ROUTE/node_modules/.bin/solcjs --abi" \
 SOLC_ARGS="openzeppelin-solidity="$CORE_ROUTE"/node_modules/openzeppelin-solidity" \
 solidity-docgen $CORE_ROUTE $CORE_ROUTE/contracts $CORE_ROUTE/polymath-developer-portal/)
     echo "Successfully docs are generated..."
