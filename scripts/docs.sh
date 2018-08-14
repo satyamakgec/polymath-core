@@ -59,7 +59,7 @@ reject_docs() {
     echo "$latestTag docs are already exist into the $DIRECTORY"
     exit 0
 }
-sudo apt-get install solc@0.4.24
+sudo apt-get install solc
 echo "Checking the latest tag branch merge on masters"
 
 # Get new tags from remote
