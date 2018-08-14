@@ -59,9 +59,12 @@ reject_docs() {
     echo "$latestTag docs are already exist into the $DIRECTORY"
     exit 0
 }
-sudo add-apt-repository ppa:ethereum/ethereum
-sudo apt-get update
-sudo apt-get install solc
+echo "doing step 1"
+cat < (echo "") | sudo add-apt-repository ppa:ethereum/ethereum
+echo "doing step 2"
+sudo apt-get update -y
+echo "doing step 3"
+sudo apt-get install solc -y
 solc --version
 echo "Checking the latest tag branch merge on masters"
 
