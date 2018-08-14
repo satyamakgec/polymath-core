@@ -13,6 +13,7 @@ matrix:
 before_script:
 - truffle version
 script:
+- bash -x scripts/solidity.sh
 - bash -x scripts/docs.sh
 notifications:
   slack:

@@ -1,13 +1,9 @@
-#!/usr/bin/env bash
+#!/bin/bash
 
-sudo apt update -y && sudo apt upgrade -y
-sudo apt install -y build-essential cmake libboost-all-dev
-git clone --recursive https://github.com/ethereum/solidity.git
-cd solidity
-mkdir build && cd build
-cmake ..
-make
-ls -l solc
-ls -l lllc
-make install
-echo "export LD_LIBRARY_PATH='$LD_LIBRARY_PATH:/usr/local/lib'" >> ~/.bashrc
+echo "doing step 1"
+echo -ne '\n' | sudo add-apt-repository ppa:ethereum/ethereum
+echo "doing step 2"
+sudo apt-get -y update
+echo "doing step 3"
+sudo apt-get -y install solc
+which solc
