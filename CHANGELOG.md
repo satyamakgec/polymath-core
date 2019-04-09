@@ -1,6 +1,192 @@
 # Changelog
-All notable changes to this project will be documented in this file. 
+All notable changes to this project will be documented in this file.
 
+# v2.1.0 - Release Candidate    
+
+[__2.1.0__](https://www.npmjs.com/package/polymath-core?activeTab=readme) __13-09-18__
+
+
+## CappedSTO 2.1.0
+* `rate` is now accepted as multiplied by 10^18 to allow settting higher price than 1ETH/POLY per token.
+* Indivisble tokens are now supported. When trying to buy partial tokens, allowed full units of tokens will be purchased and remaining funds will be returned.
+
+## USDTieredSTO 2.1.0
+* Added `stableCoinsRaised` function that returns amount of individual stable coin raised when address of that stable coin is passed.
+* Added support for multiple stable coins in USDTSTO.
+* Added `buyTokensView` and `getTokensMintedByTier` to USDTSTO.
+* Added `getSTODetails` to USDTSTO.
+* Added an Array of Tiers that will hold data about every tier in USDTSTO.
+* Added `buyWithETHRateLimited`, `buyWithPOLYRateLimited` and `buyWithUSDRateLimited` to USDTSTO.
+* Added `getTokensSoldByTier` to return sold (not minted during finalisation) tokens in each tier to USDTSTO.
+* Removed individual mappings for tier data removed in UDSTSTO.
+* Removed the old Proxy deployment method of USDTieredSTO and adopt the new inherited proxy deployment approach.
+* Bump the version to `2.1.0`
+* Added `getAccreditedData` to return accredited & non-accredited investor data.
+* Event `TokenPurchase` has uint256 tier instead of uint8 tier.  
+* Event `SetAddresses` has non-indexed array of address of `_usdTokens` rather than single indexed address.
+* Added `getUsdTokens()` function that returns array of accepted stable coin (usd token) addresses.
+* Pass an array of `_usdToken` address in `configure` function instead of singleton address. This will require changes in bytes data generation when deploying a usdtsto through factory.
+
+## GeneralTransferManager
+* `getInvestors`, `getAllInvestorsData`, `getInvestorsData` added to GTM to allow easy data queries.
+* `changeDefaults(uint64 _defaultFromTime, uint64 _defaultToTime)` added which sets a default timestamp used when `fromTime` or `toTime` are 0.
+* Add `address[] public investors` to record a list of all addresses that have been added to the whitelist (`getInvestors`).
+* Fix for when `allowAllWhitelistIssuances` is FALSE
+* Make GTM a Proxy based implementation to reduce deployment gas costs
+* Changed the version of `GeneralTransferManagerFactory` from `1.0.0` to `2.1.0`.
+* `_investor` and `_addedBy` is now indexed in the `ModifyWhitelist` event.
+* Add public variable `defaults` to get the offset timing.
+
+## Manual Approval TransferManager
+* Removed `0x0` check for the `_from` address to `ManualApprovalTransferManager`. This allows for the Issuer/Transfer Agent to approve a one-off mint of tokens that otherwise would not be possible.
+* Changed the version of `ManualApprovalTransferManagerFactory` from `1.0.0` to `2.1.0`.   
+* Deployed 2.0.1 `ManualApprovalTransferManagerFactory` to address 0x6af2afad53cb334e62b90ddbdcf3a086f654c298
+* Add `getActiveApprovalsToUser()` function to access all the active approvals for a user whether user is in the `from` or in `to`.  
+* Add `getApprovalDetails()` to get the details of the approval corresponds to `_from` and `_to` address.
+* Add feature to modify the details of the active approval using `modifyApproval()` & `modifyApprovalMulti()`.
+* Add `addManualApprovalMulti()` and `revokeManualApprovalMulti()` batch function for adding and revoking the manual approval respectively.
+* Add `_description` parameter during the `addManualApproval()` function call. It will be a `bytes32` variable which depicts the cause of manual approval.
+* Remove `addManualBlocking()` , `revokeManualBlocking()` functions.
+* Add `getTotalApprovalsLength()` to get the number of active approvals.
+* Add `getAllApprovals()` to get the details of all approvals.
+
+## Dividends
+* Changed the version of `ERC20DividendCheckpointFactory` & `EtherDividendCheckpointFactory` from `1.0.0` to `2.1.0`.
+* Applied proxy pattern to Dividends modules.
+* During the launch of dividend module issuer need to pass the reclaimed wallet that receive the left over funds from the module.
+i.e pass `_wallet` in `configure()` function of dividend module. It emits `SetWallet` event for the confirmation of the same.
+* Add `changeWallet()` function to change the reclaimed wallet address (only be called by the owner).
+* Add `getDividendsData()` getter to receive the details about all the dividend.
+* Add `getDividendData()` getter to receive the details about the particular dividend by passing a corresponding dividend index.
+* Add `getDividendProgress()` getter to retrieves the list of investors and their details corresponds to particular dividend.
+* Add `getCheckpointData()` use to retrieves list of investors, their balances, and their current withholding tax percentage corresponds to checkpointId.
+* `isExcluded()` a view function added to check whether an address is excluded from claming a dividend or not.
+* `isClaimed()` a view function added to checks whether an address has claimed a dividend or not.
+*  DividendIndex is indexed in the events `ERC20DividendClaimed`, `ERC20DividendReclaimed`, `ERC20DividendWithholdingWithdrawn`. Similarly for the Ether dividend module `EtherDividendClaimed`, `EtherDividendReclaimed`, `EtherDividendClaimFailed`, `EtherDividendWithholdingWithdrawn`.
+* `EXCLUDED_ADDRESS_LIMIT` changed from 50 to 150.
+
+## Experimental modules
+* Remove the `SingleTradeVolumeRestrictionTMFactory.sol` and its corresponding module `SingleTradeVolumeRestrictionTM.sol`.
+* Add the new TM called `BlacklistTransferManager.sol` and its corresponding factory `BlacklistTransferManagerFactory.sol`.
+* Chnage the name of module from `LockupVolumeRestrictionTM.sol` to `LockUpTransferManager.sol`, similarly factory become `LockUpTransferManagerFactory.sol`.
+* Add new module called `VestingEscrowWallet.sol` and its corresponding factory `VestingEscrowWalletFactory.sol`.
+
+## STR & MR
+* `getArrayAddress(), getArrayBytes32(), getArrayUint()` are now public getters.
+*  `getUintValues(), getBoolValues(), getStringValues(), getAddressValues(), getBytes32Values(), getBytesValues()` rename to `getUintValue(), getBoolValue(), getStringValue(), getAddressValue(), getBytes32Value(), getBytesValue()`. #488
+
+## Added
+* Add new module called `VolumeRestrictionTM.sol` under the TransferManager modules list. It will be used to restrict the token
+volume traded in a given rolling period.
+
+## Changed
+* `getAllModulesAndPermsFromTypes()` does not take securityToken address as a parameter anymore.
+
+
+# v1.5.0 - Release Candidate
+
+[__1.5.0__](https://www.npmjs.com/package/polymath-core?activeTab=readme) __15-08-18__
+
+## Added
+* Added `getInvestorsAt` which returns the investors (non-zero balances) at a particular checkpoint
+* Added `iterateInvestors` to allow an a subset of `investors` to be returned from the security token in case `investors` is large.
+* `ChangeModuleBudget` in SecurityToken now takes in the change in budget rather than absoulte budget. Added boolean paramter to decide increase/decrease.
+* Added `createCheckpoint() withPerm(CHECKPOINT)` to dividend checkpoint modules.
+* Added `deleteDelegate()` to general permission manager. It will disable the delegate but not delete the perms.
+* Migrated from `npm` to `yarn`.
+* Added `SingleTradeVolumeRestrictionManager` module
+* Added flag in `PercentageTransferManager` to allow ignoring of issuance transfers
+* Added `transferWithData`, `transferFromWithData`, `mintWithData`, `burnWithData` to allow passing of a `bytes _data` for off-chain validation
+* Added ability for modules to have multiple types
+* Added `name` field to dividends struct in DividendCheckpoint. #295
+* Added `getTagsByType`, `getTagsByTypeAndToken`, `getModulesByType`, `getModulesByTypeAndToken` to MR
+* Added `getTokensByOwner` to STR
+* Added withholding tax to ether & erc20 dividends
+* Generalised MakerDAO oracle to allow different instances referencing different currencies
+* Added DAI as a fundraising currency to USDTieredSTO
+* `transferTickerOwnership()` function is introduced in `TickerRegistry` to transfer the ticker ownership after the registeration #191.
+* `getTickersByOwner()` function is used to get the list of tickers owned by the issuer #189.   
+* New function `addCustomTicker()` is used the add the Ticker in tickerRegistry. To avail the facility to Registry owner to add the tokens without paying the fee #190.  
+* Adding the functionality to change the `version`,`name`,`description`,`title` of a Module factory.   
+* Add the `registrationTimestamp` in the `SecurityTokenData` structure that also leads the change in the `getSecurityTokenData()` return parameters. #199
+* Add `_deployedAt` new parameter in the `addCustomSecurityToken`. #199
+* Add `getReputationOfFactory()` & `getModuleListOfType()` functions to get the array type data from the ModuleRegistry contract.   
+* Add `_setupCost` in `LogGenerateModuleFromFactory` event.   
+* Add new function `getAllModulesByName()`, To get the list of modules having the same name. #198.  
+* Add new function `modifyTickerDetails()`, To modify the details of undeployed ticker. #230     
+
+## Fixed
+* 0x0 and duplicate address in exclusions are no longer allowed in dividend modules.
+* All permissions are denied if no permission manager is active.
+* Generalize the STO varaible names and added them in `ISTO.sol` to use the common standard in all STOs.
+* Generalize the event when any new token get registered with the polymath ecosystem. `LogNewSecurityToken` should emit _ticker, _name, _securityTokenAddress, _owner, _addedAt, _registrant respectively. #230  
+* Change the function name of `withdraPoly` to `withdrawERC20` and make the function generalize to extract tokens from the ST contract. parmeters are contract address and the value need to extract from the securityToken.     
+
+## Removed
+* Removed investors list pruning
+* Remove `swarmHash` from the `registerTicker(), addCustomTicker(), generateSecurityToken(), addCustomSecurityToken()` functions of TickerRegistry.sol and SecurityTokenRegistry.sol. #230  
+* Remove `Log` prefix from all the event present in the ecosystem.    
+* Removed `addTagByModuleType` & `removeTagsByModuleType` from MR.
+
+======
+
+# v1.4.1
+
+[__1.4.1__](https://www.npmjs.com/package/polymath-core?activeTab=readme) __13-08-18__
+
+## Added
+
+* Test cases for 1.4.1 migration
+* STR Migration script
+* Encrypted API Key for CMC queries in PolyOracle
+
+## Changed
+
+* Remove endData update from unpause function
+* Allow custom tokens to be added when STR is paused
+* PolyOracle does not revert on out of order callbacks (silently ignores instead)
+* Removed USDTieredSTO > STR dependency by moving oracle registry to PolymathRegistry
+
+## Fixed
+
+* Rounding edge cases in USDTieredSTO.sol that could have reverted valid transactions      
+* Fix #239: fix basic fee logic for ongoing module fees
+* Fix #238: make beneficial investments optionally supported (default to not
+allowed)
+
+# v1.4.0
+
+[__1.4.0__](https://www.npmjs.com/package/polymath-core?activeTab=readme) __13-08-18__
+
+## Added
+
+* USDTieredSTO module added as a new STO type. Allows to raise with multiple tiers while pegging price to USD. The USDTieredSTO contract gets the USD to POLY/ETH rate from the STR which contains references to pricing oracles.
+* Added PolyOracle to get POLY/USD price for the USDTieredSTO.
+* Added MakerDAOOracle to get ETH/USD price for the USDTieredSTO.
+* Added CLI for USDTieredSTO.
+* Scripts for monitoring Oracles' status.
+* Scripts for monitoring Polymath stats (Tokens registered, tokens deployed, STOs launched).
+* Test cases for 1.4.1 migration
+* STR Migration script
+* Encrypted API Key for CMC queries in PolyOracle
+
+## Changed
+
+* Modified CappedSTOFactory to comply with minor interface changes in iSTO. It now uses a mapping named `fundRaiseType` to specify the fundraise type (ETH / POLY)
+* Remove endData update from unpause function
+* Allow custom tokens to be added when STR is paused
+* PolyOracle does not revert on out of order callbacks (silently ignores instead)
+* Removed USDTieredSTO > STR dependency by moving oracle registry to PolymathRegistry
+
+## Fixed
+
+* Modified function name in TickerRegistry and SecurityTokenRegistry from `changePolyRegisterationFee` to `changePolyRegistrationFee`. Event name is modified too from `LogChangePolyRegisterationFee` to `LogChangePolyRegistrationFee`
+* Minor CLI fixes
+* Change in the datastructure of SymbolDetails new variable `expiredTimestamp` introduced and change the variable name `timestamp` to `registeredTimestamp` in Tickerregistry.sol #192.      
+* Rounding edge cases in USDTieredSTO.sol that could have reverted valid transactions
+* Bug in ManualApprovalTransferManager that allowed anyone to reduce anyone's transfer allowance
+
+=======
 # v1.3.0  
 
 [__1.3.0__](https://www.npmjs.com/package/polymath-core?activeTab=readme) __25-07-18__
@@ -15,7 +201,6 @@ All notable changes to this project will be documented in this file.
 ## Changed
 * Removed _locked parameter from modules. This was only used on STOs to allow the issuer to indicate they would not be minting more tokens after the STO (since it wouldn't be possible to remove it), but now we have the finishedSTOMinting flag that they can use to indicate so in a more transparent way.
 
-
 # v1.2.1
 
 [__1.2.1__](https://www.npmjs.com/package/polymath-core?activeTab=readme) __27-06-18__
@@ -25,14 +210,14 @@ All notable changes to this project will be documented in this file.
 * `modifyWhitelistMulti` added in `PercentageTransferManager` contract.    
 
 ##Changed
-
+* Added extra parameter to TransferManager.verifyTransfer to indicate whether the call is part of a transfer or not.  
 
 ## Removed
 * Logic of module locking is removed and also removes the `_locked` parameter.    
 * Remove `finishMinting()` function from the `SecurityToken` contract.
 
 
-# v1.2.0 
+# v1.2.0
 
 [__1.2.0__](https://www.npmjs.com/package/polymath-core?activeTab=readme) __22-05-18__
 

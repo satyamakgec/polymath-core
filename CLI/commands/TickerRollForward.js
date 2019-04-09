@@ -1,29 +1,14 @@
 var fs = require('fs');
 var csv = require('fast-csv');
 var BigNumber = require('bignumber.js');
-const Web3 = require('web3');
 var chalk = require('chalk');
 var common = require('./common/common_functions');
 
 /////////////////////////  ARTIFACTS  /////////////////////////
-
 var contracts = require('./helpers/contract_addresses');
-// var abis = require('./helpers/contract_abis');
-
-/////////////////////////     WEB3    /////////////////////////
-
-if (typeof web3 !== 'undefined') {
-  web3 = new Web3(web3.currentProvider);
-} else {
-  // set the provider you want from Web3.providers
-  web3 = new Web3(new Web3.providers.HttpProvider("http://localhost:8545"));
-}
+var abis = require('./helpers/contract_abis');
 
 ///////////////////////// GLOBAL VARS /////////////////////////
-
-let USER;
-let DEFAULT_GAS_PRICE;
-
 let ticker_data = [];
 let registered_tickers = [];
 let failed_tickers = [];
@@ -31,14 +16,13 @@ let failed_tickers = [];
 let totalGas = BigNumber(0);
 
 let polyToken;
-let tickerRegistry;
-let tickerRegistryAddress;
+let securityTokenRegistry;
+let securityTokenRegistryAddress;
 
-function Ticker(_owner, _symbol, _name, _swarmHash) {
-    this.owner = _owner;
-    this.symbol = _symbol;
-    this.name = _name;
-    this.swarmHash = _swarmHash;
+function Ticker(_owner, _symbol, _name) {
+  this.owner = _owner;
+  this.symbol = _symbol;
+  this.name = _name;
 }
 
 function FailedRegistration(_ticker, _error) {
@@ -47,7 +31,6 @@ function FailedRegistration(_ticker, _error) {
 }
 
 /////////////////////////  MAIN SCRIPT  /////////////////////////
-
 /*
 1. Parse csv to array
 2. Process registration
@@ -60,22 +43,14 @@ function FailedRegistration(_ticker, _error) {
 startScript();
 
 async function startScript() {
-  const accounts = await web3.eth.getAccounts();
-  USER = accounts[0];
-  // const DEFAULT_GAS_PRICE = common.getGasPrice(await web3.eth.net.getId());
-  DEFAULT_GAS_PRICE = BigNumber(50000000000);
 
-  let tickerRegistryABI = JSON.parse(fs.readFileSync('./build/contracts/TickerRegistry.json').toString()).abi;
-  tickerRegistryAddress = contracts.tickerRegistryAddress();
-  // let tickerRegistryAddress = await contracts.tickerRegistry();
-  // let tickerRegistryABI = abis.tickerRegistry();
-  tickerRegistry = new web3.eth.Contract(tickerRegistryABI, tickerRegistryAddress);
-  tickerRegistry.setProvider(web3.currentProvider);
+  securityTokenRegistryAddress = await contracts.securityTokenRegistry();
+  let securityTokenRegistryABI = abis.securityTokenRegistry();
+  securityTokenRegistry = new web3.eth.Contract(securityTokenRegistryABI, securityTokenRegistryAddress);
+  securityTokenRegistry.setProvider(web3.currentProvider);
 
-  let polytokenABI = JSON.parse(require('fs').readFileSync('./build/contracts/PolyTokenFaucet.json').toString()).abi;
-  let polytokenAddress = contracts.polyTokenAddress();
-  // let polytokenAddress = await contracts.polyToken();
-  // let polytokenABI = abis.polyToken();
+  let polytokenAddress = await contracts.polyToken();
+  let polytokenABI = abis.polyToken();
   polyToken = new web3.eth.Contract(polytokenABI, polytokenAddress);
   polyToken.setProvider(web3.currentProvider);
 
@@ -83,11 +58,11 @@ async function startScript() {
 }
 
 async function readFile() {
-  var stream = fs.createReadStream("./CLI/data/ticker_data.csv");
+  var stream = fs.createReadStream(`${__dirname}/../data/ticker_data.csv`);
 
   var csvStream = csv()
     .on("data", function (data) {
-      ticker_data.push(new Ticker(data[0],data[1],data[2],data[3]));
+      ticker_data.push(new Ticker(data[0], data[1], data[2], data[3]));
     })
     .on("end", async function () {
       await registerTickers();
@@ -97,22 +72,19 @@ async function readFile() {
 
 async function registerTickers() {
   // Poly approval for registration fees
-  let polyBalance = BigNumber(await polyToken.methods.balanceOf(USER).call({ from: USER }));
-  let fee = await tickerRegistry.methods.registrationFee().call({ from: USER });
+  let polyBalance = BigNumber(await polyToken.methods.balanceOf(Issuer.address).call());
+  let fee = web3.utils.fromWei(await securityTokenRegistry.methods.getTickerRegistrationFee().call());
   let totalFee = BigNumber(ticker_data.length).mul(fee);
 
   if (totalFee.gt(polyBalance)) {
     console.log(chalk.red(`\n*******************************************************************************`));
-    console.log(chalk.red(`Not enough POLY to pay registration fee. Require ${totalFee.div(10**18).toNumber()} POLY but have ${polyBalance.div(10**18).toNumber()} POLY.`));
+    console.log(chalk.red(`Not enough POLY to pay registration fee. Require ${totalFee.div(10 ** 18).toNumber()} POLY but have ${polyBalance.div(10 ** 18).toNumber()} POLY.`));
     console.log(chalk.red(`*******************************************************************************\n`));
     process.exit(0);
   } else {
-    let approveAction = polyToken.methods.approve(tickerRegistryAddress, totalFee);
-    let GAS = await common.estimateGas(approveAction, USER, 1.2);
-    await approveAction.send({ from: USER, gas: GAS, gasPrice: DEFAULT_GAS_PRICE })
-    .on('receipt', function(receipt){
-      totalGas = totalGas.add(receipt.gasUsed);
-    });
+    let approveAction = polyToken.methods.approve(securityTokenRegistryAddress, totalFee);
+    let receipt = await common.sendTransaction(approveAction);
+    totalGas = totalGas.add(receipt.gasUsed);
   }
 
   for (var i = 0; i < ticker_data.length; i++) {
@@ -128,7 +100,7 @@ async function registerTickers() {
     }
 
     // validate ticker
-    await tickerRegistry.methods.getDetails(ticker_data[i].symbol).call({ from: USER }, function(error, result){
+    await securityTokenRegistry.methods.getTickerDetails(ticker_data[i].symbol).call({}, function (error, result) {
       if (result[1] != 0) {
         failed_tickers.push(` ${i} is already registered`);
         valid = false;
@@ -137,14 +109,11 @@ async function registerTickers() {
 
     if (valid) {
       try {
-        let registerTickerAction = tickerRegistry.methods.registerTicker(owner, ticker_data[i].symbol, ticker_data[i].name, ticker_data[i].swarmHash);
-        let GAS = await common.estimateGas(registerTickerAction, USER, 1.2);
-        await registerTickerAction.send({ from: USER, gas: GAS, gasPrice: DEFAULT_GAS_PRICE })
-        .on('receipt', function(receipt){
-          registered_tickers.push(ticker_data[i]);
-          console.log(ticker_data[i]);
-          totalGas = totalGas.add(receipt.gasUsed);
-        });
+        let registerTickerAction = securityTokenRegistry.methods.registerTicker(owner, ticker_data[i].symbol, ticker_data[i].name);
+        let receipt = await common.sendTransaction(registerTickerAction);
+        registered_tickers.push(ticker_data[i]);
+        console.log(ticker_data[i]);
+        totalGas = totalGas.add(receipt.gasUsed);
       } catch (error) {
         failed_tickers.push(` ${i} is ${error}`);
       }
@@ -162,7 +131,7 @@ async function logResults() {
     Successful registrations: ${registered_tickers.length}
     Failed registrations:     ${failed_tickers.length}
     Total gas consumed:       ${totalGas}
-    Total gas cost:           ${DEFAULT_GAS_PRICE.mul(totalGas).div(10**18)} ETH
+    Total gas cost:           ${defaultGasPrice.mul(totalGas).div(10 ** 18)} ETH
 
     List of failed registrations:
     ${failed_tickers}

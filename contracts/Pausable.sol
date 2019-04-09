@@ -14,7 +14,7 @@ contract Pausable {
     * @notice Modifier to make a function callable only when the contract is not paused.
     */
     modifier whenNotPaused() {
-        require(!paused);
+        require(!paused, "Contract is paused");
         _;
     }
 
@@ -22,25 +22,25 @@ contract Pausable {
     * @notice Modifier to make a function callable only when the contract is paused.
     */
     modifier whenPaused() {
-        require(paused);
+        require(paused, "Contract is not paused");
         _;
     }
 
    /**
-    * @notice called by the owner to pause, triggers stopped state
+    * @notice Called by the owner to pause, triggers stopped state
     */
-    function _pause() internal {
-        require(!paused);
+    function _pause() internal whenNotPaused {
         paused = true;
+        /*solium-disable-next-line security/no-block-members*/
         emit Pause(now);
     }
 
     /**
-    * @notice called by the owner to unpause, returns to normal state
+    * @notice Called by the owner to unpause, returns to normal state
     */
-    function _unpause() internal {
-        require(paused);
+    function _unpause() internal whenPaused {
         paused = false;
+        /*solium-disable-next-line security/no-block-members*/
         emit Unpause(now);
     }
 

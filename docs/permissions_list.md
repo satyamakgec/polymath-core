@@ -11,28 +11,102 @@
     </thead>
     <tbody>
         <tr>
-            <td rowspan=4> Checkpoint </td>
-            <td rowspan=2>ERC20DividendCheckpoint</td>
+            <td rowspan=24> Checkpoint </td>
+            <td rowspan=12>ERC20DividendCheckpoint</td>
             <td>pushDividendPayment()</td>
-            <td rowspan=4> withPerm(DISTRIBUTE)</td>
+            <td rowspan=2> withPerm(DISTRIBUTE)</td>
         </tr>
         <tr>
             <td>pushDividendPaymentToAddresses()</td>
         </tr>
         <tr>
-            <td rowspan=2>EtherDividendCheckpoint</td>
+            <td> setDefaultExcluded() </td>
+            <td rowspan=9> withPerm(MANAGE) </td>
+        </tr>
+        <tr>
+            <td> setWithholding() </td>
+        </tr>
+        <tr>
+            <td> setWithholdingFixed() </td>
+        </tr>
+        <tr>
+            <td> createDividend() </td>
+        </tr>
+        <tr>
+            <td> createDividendWithCheckpoint() </td>
+        </tr>
+        <tr>
+            <td> createDividendWithExclusions() </td>
+        </tr>
+        <tr>
+            <td> createDividendWithCheckpointAndExclusions() </td>
+        </tr>
+        <tr>
+            <td> reclaimDividend() </td>
+        </tr>
+        <tr>
+            <td> withdrawWithholding() </td>
+        </tr>
+        </tr>
+            <td> createCheckpoint() </td>
+            <td> withPerm(CHECKPOINT) </td>
+        </tr>
+        <tr>
+            <td rowspan=12>EtherDividendCheckpoint</td>
             <td>pushDividendPayment()</td>
+            <td rowspan=2> withPerm(DISTRIBUTE) </td>
         </tr>
         <tr>
             <td>pushDividendPaymentToAddresses()</td>
+        </tr>
+        <tr>
+            <td> setDefaultExcluded() </td>
+            <td rowspan=9> withPerm(MANAGE) </td>
+        </tr>
+        <tr>
+            <td> setWithholding() </td>
+        </tr>
+        <tr>
+            <td> setWithholdingFixed() </td>
+        </tr>
+        <tr>
+            <td> createDividend() </td>
+        </tr>
+        <tr>
+            <td> createDividendWithCheckpoint() </td>
+        </tr>
+        <tr>
+            <td> createDividendWithExclusions() </td>
+        </tr>
+        <tr>
+            <td> createDividendWithCheckpointAndExclusions() </td>
+        </tr>
+        <tr>
+            <td> reclaimDividend() </td>
+        </tr>
+        <tr>
+            <td> withdrawWithholding() </td>
+        </tr>
+        </tr>
+            <td> createCheckpoint() </td>
+            <td> withPerm(CHECKPOINT) </td>
         </tr>
          <tr>
-            <td> PermissionManager </td>
-            <td>GeneralPermissionManager</td>
-            <td>addPermission()</td>
-            <td> withPerm(CHANGE_PERMISSION)</td>
+            <td rowspan=3> PermissionManager </td>
+            <td rowspan=3>GeneralPermissionManager</td>
+            <td>addDelegate()</td>
+            <td rowspan=3> withPerm(CHANGE_PERMISSION)</td>
         </tr>
         <tr>
+<<<<<<< HEAD
+=======
+            <td> changePermission() </td>
+        </tr>
+        <tr>
+            <td> changePermissionMulti() </td>
+        </tr>
+        <tr>
+>>>>>>> upstream/master
             <td rowspan=10>STO</td>
             <td>CappedSTO</td>
             <td> - </td>
@@ -72,7 +146,7 @@
             <td>allocateTokensMulti()</td>
         </tr>
         <tr>
-            <td rowspan=14>TransferManager</td>
+            <td rowspan=42>TransferManager</td>
             <td>CountTransferManager</td>
             <td>changeHolderCount()</td>
             <td>withPerm(ADMIN)</td>
@@ -105,24 +179,168 @@
             <td>modifyWhitelistMulti()</td>
         </tr>
         <tr>
-          <td rowspan=4>ManualApprovalTransferManager</td>
+          <td rowspan=2>ManualApprovalTransferManager</td>
           <td>addManualApproval()</td>
-          <td rowspan=4>withPerm(TRANSFER_APPROVAL)</td>
-        </tr>
-        <tr>
-          <td>addManualBlocking()</td>
+          <td rowspan=2>withPerm(TRANSFER_APPROVAL)</td>
         </tr>
         <tr>
           <td>revokeManualApproval()</td>
         </tr>
         <tr>
-          <td>revokeManualBlocking()</td>
+          <td rowspan=4>PercentageTransferManager</td>
+          <td>modifyWhitelist()</td>
+          <td rowspan=2>withPerm(WHITELIST)</td>
         </tr>
         <tr>
-          <td>PercentageTransferManager</td>
-          <td>modifyWhitelist()</td>
-          <td>withPerm(WHITELIST)</td>
+            <td> modifyWhitelistMulti() </td>
         </tr>
+        <tr>
+            <td> setAllowPrimaryIssuance() </td>
+            <td rowspan=2> withPerm(ADMIN) </td>
+        </tr>
+        <tr>
+            <td> changeHolderPercentage() </td>
+        </tr>
+        <tr>
+            <td rowspan=13> VolumeRestrictionTM </td>
+            <td> changeExemptWalletList() </td>
+            <td rowspan=13> withPerm(ADMIN) </td>
+        </tr>
+        <tr>
+            <td>addIndividualRestriction()</td>
+        </tr>
+        <tr>
+            <td>addIndividualRestrictionMulti()</td>
+        </tr>
+        <tr>
+            <td>addGlobalRestriction()</td>
+        </tr>
+        <tr>
+            <td>addDailyGlobalRestriction()</td>
+        </tr>
+        <tr>
+            <td>removeIndividualRestriction()</td>
+        </tr>
+        <tr>
+            <td>removeIndividualRestrictionMulti()</td>
+        </tr>
+        <tr>
+            <td>removeGlobalRestriction()</td>
+        </tr>
+        <tr>
+            <td>removeDailyGlobalRestriction()</td>
+        </tr>
+        <tr>
+            <td>modifyIndividualRestriction()</td>
+        </tr>
+        <tr>
+            <td>modifyIndividualRestrictionMulti()</td>
+        </tr>
+        <tr>
+            <td>modifyGlobalRestriction()</td>
+        </tr>
+        <tr>
+            <td>modifyDailyGlobalRestriction()</td>
+        </tr>     
+        <tr>
+            <td rowspan=14> BlacklistTransferManager </td>
+            <td> addBlacklistType() </td>
+            <td rowspan=14> withPerm(ADMIN) </td>
+        </tr>
+        <tr>
+            <td> addBlacklistTypeMulti() </td>
+        </tr>
+        <tr>
+            <td> modifyBlacklistType() </td>
+        </tr>
+        <tr>
+            <td> modifyBlacklistTypeMulti() </td>
+        </tr>
+        <tr>
+            <td> deleteBlacklistType() </td>
+        </tr>
+        <tr>
+            <td> deleteBlacklistTypeMulti() </td>
+        </tr>
+        <tr>
+            <td> addInvestorToBlacklist() </td>
+        </tr>
+        <tr>
+            <td> addInvestorToBlacklistMulti() </td>
+        </tr>
+        <tr>
+            <td> addMultiInvestorToBlacklistMulti() </td>
+        </tr>
+        <tr>
+            <td> addInvestorToNewBlacklist() </td>
+        </tr>
+        <tr>
+            <td> deleteInvestorFromAllBlacklist() </td>
+        </tr>
+        <tr>
+            <td> deleteInvestorFromAllBlacklistMulti() </td>
+        </tr>
+        <tr>
+            <td> deleteInvestorFromBlacklist() </td>
+        </tr>
+        <tr>
+            <td> deleteMultiInvestorsFromBlacklistMulti() </td>
+        </tr>
+        <tr>
+            <td rowspan=16>Wallet</td>
+            <td rowspan=16>VestingEscrowWallet</td>
+            <td>changeTreasuryWallet()</td>
+            <td>onlyOwner</td>
+        </tr>
+        <tr>
+            <td>depositTokens()</td>
+            <td rowspan=15>withPerm(ADMIN)</td>
+        </tr>
+<<<<<<< HEAD
+=======
+        <tr>
+            <td>sendToTreasury()</td>
+        </tr>
+        <tr>
+            <td>pushAvailableTokens()</td>
+        </tr>
+        <tr>
+            <td>addTemplate()</td>
+        </tr>
+        <tr>
+            <td>removeTemplate()</td>
+        </tr>
+        <tr>
+            <td>addSchedule()</td>
+        </tr>
+        <tr>
+            <td>addScheduleFromTemplate()</td>
+        </tr>
+        <tr>
+            <td>modifySchedule()</td>
+        </tr>
+        <tr>
+            <td>revokeSchedule()</td>
+        </tr>
+        <tr>
+            <td>revokeAllSchedules()</td>
+        </tr>
+        <tr>
+            <td>pushAvailableTokensMulti()</td>
+        </tr>
+        <tr>
+            <td>addScheduleMulti()</td>
+        </tr>
+        <tr>
+            <td>addScheduleFromTemplateMulti()</td>
+        </tr>
+        <tr>
+            <td>revokeSchedulesMulti()</td>
+        </tr>
+        <tr>
+            <td>modifyScheduleMulti()</td>
+        </tr>                                                                                                        
+>>>>>>> upstream/master
     </tbody>
  </table>
  

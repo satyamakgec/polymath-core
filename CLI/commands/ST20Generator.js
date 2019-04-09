@@ -1,506 +1,212 @@
-var readlineSync = require('readline-sync');
-var BigNumber = require('bignumber.js');
-var chalk = require('chalk');
-const shell = require('shelljs');
-const Web3 = require('web3');
-var contracts = require("./helpers/contract_addresses");
-var common = require('./common/common_functions');
+const readlineSync = require('readline-sync');
+const BigNumber = require('bignumber.js');
+const moment = require('moment');
+const chalk = require('chalk');
+const tokenManager = require('./token_manager');
+const contracts = require('./helpers/contract_addresses');
+const abis = require('./helpers/contract_abis');
+const common = require('./common/common_functions');
 
-let tickerRegistryAddress = contracts.tickerRegistryAddress();
-let securityTokenRegistryAddress = contracts.securityTokenRegistryAddress();
-let cappedSTOFactoryAddress = contracts.cappedSTOFactoryAddress();
-let polytokenAddress = contracts.polyTokenAddress();
-
-let tickerRegistryABI;
-let securityTokenRegistryABI;
-let securityTokenABI;
-let cappedSTOABI;
-let generalTransferManagerABI;
-let polytokenABI;
-let cappedSTOFactoryABI;
-
-try{
-  tickerRegistryABI         = JSON.parse(require('fs').readFileSync('./build/contracts/TickerRegistry.json').toString()).abi;
-  securityTokenRegistryABI  = JSON.parse(require('fs').readFileSync('./build/contracts/SecurityTokenRegistry.json').toString()).abi;
-  securityTokenABI          = JSON.parse(require('fs').readFileSync('./build/contracts/SecurityToken.json').toString()).abi;
-  cappedSTOABI              = JSON.parse(require('fs').readFileSync('./build/contracts/CappedSTO.json').toString()).abi;
-  generalTransferManagerABI = JSON.parse(require('fs').readFileSync('./build/contracts/GeneralTransferManager.json').toString()).abi;
-  polytokenABI              = JSON.parse(require('fs').readFileSync('./build/contracts/PolyTokenFaucet.json').toString()).abi;
-  cappedSTOFactoryABI       = JSON.parse(require('fs').readFileSync('./build/contracts/CappedSTOFactory.json').toString()).abi;
-}catch(err){
-  console.log('\x1b[31m%s\x1b[0m',"Couldn't find contracts' artifacts. Make sure you ran truffle compile first");
-  return;
-}
-
-if (typeof web3 !== 'undefined') {
-  web3 = new Web3(web3.currentProvider);
-} else {
-  // set the provider you want from Web3.providers
-  web3 = new Web3(new Web3.providers.HttpProvider("http://localhost:8545"));
-}
-
-///////////////////
-// Crowdsale params
-let startTime;
-let endTime;
-let wallet;
-let rate;
-let raiseType;
-let cap;
-let issuerTokens;
-
-let tokenName;
-let tokenSymbol;
-let divisibility = true;
-
-const regFee = 250;
-const stoFee = 20000;
-const tokenDetails = "";
 ////////////////////////
+let securityTokenRegistryAddress;
+let tokenSymbol;
+let tokenLaunched;
+
 // Artifacts
-let tickerRegistry;
 let securityTokenRegistry;
 let polyToken;
-let securityToken;
-let cappedSTO;
-let cappedSTOFactory;
-// App flow
-let accounts;
-let Issuer;
-let _DEBUG = false;
-let DEFAULT_GAS_PRICE = 5000000000;
 
-async function executeApp() {
-  accounts = await web3.eth.getAccounts();
-  Issuer = accounts[0];
-
-  setup();
-
+async function executeApp(_ticker, _transferOwnership, _name, _details, _divisible) {
   common.logAsciiBull();
   console.log("********************************************");
   console.log("Welcome to the Command-Line ST-20 Generator.");
   console.log("********************************************");
   console.log("The following script will create a new ST-20 according to the parameters you enter.");
-  if(_DEBUG){
-    console.log('\x1b[31m%s\x1b[0m',"Warning: Debugging is activated. Start and End dates will be adjusted for easier testing.");
-  }
-  let start = readlineSync.question('Press enter to continue or exit (CTRL + C): ', {
-    defaultInput: 'Y'
-  });
-  if(start != 'Y' && start != 'y') return;
+  console.log("Issuer Account: " + Issuer.address + "\n");
+
+  await setup();
 
   try {
-    await step_ticker_reg();
-    await step_token_deploy();
-    await step_Wallet_Issuance();
-    await step_STO_Launch();
-    await step_STO_Status();
+    await step_ticker_registration(_ticker);
+    if (!tokenLaunched) {
+      await step_transfer_ticker_ownership(_transferOwnership);
+      await step_token_deploy(_name, _details, _divisible);
+    }
+    if (typeof _divisible === 'undefined') {
+      await tokenManager.executeApp(tokenSymbol);
+    }
   } catch (err) {
-    console.log(err.message);
+    console.log(err);
     return;
   }
 };
 
-function setup(){
+async function setup() {
   try {
-    tickerRegistry = new web3.eth.Contract(tickerRegistryABI,tickerRegistryAddress);
-    tickerRegistry.setProvider(web3.currentProvider);
-    securityTokenRegistry = new web3.eth.Contract(securityTokenRegistryABI,securityTokenRegistryAddress);
+    securityTokenRegistryAddress = await contracts.securityTokenRegistry();
+    let securityTokenRegistryABI = abis.securityTokenRegistry();
+    securityTokenRegistry = new web3.eth.Contract(securityTokenRegistryABI, securityTokenRegistryAddress);
     securityTokenRegistry.setProvider(web3.currentProvider);
+
+    let polytokenAddress = await contracts.polyToken();
+    let polytokenABI = abis.polyToken();
     polyToken = new web3.eth.Contract(polytokenABI, polytokenAddress);
     polyToken.setProvider(web3.currentProvider);
-    cappedSTOFactory = new web3.eth.Contract(cappedSTOFactoryABI, cappedSTOFactoryAddress);
-    cappedSTOFactory.setProvider(web3.currentProvider);
-  }catch(err){
+  } catch (err) {
     console.log(err)
-    console.log('\x1b[31m%s\x1b[0m',"There was a problem getting the contracts. Make sure they are deployed to the selected network.");
-    return;
+    console.log(chalk.red('\nThere was a problem getting the contracts. Make sure they are deployed to the selected network.'));
+    process.exit(0);
   }
 }
 
-async function step_ticker_reg(){
-  console.log("\n");
-  console.log('\x1b[34m%s\x1b[0m',"Token Creation - Symbol Registration");
+async function step_ticker_registration(_ticker) {
+  console.log(chalk.blue('\nToken Symbol Registration'));
 
-  let alreadyRegistered = false;
+  let regFee = web3.utils.fromWei(await securityTokenRegistry.methods.getTickerRegistrationFee().call());
   let available = false;
 
   while (!available) {
-    console.log(chalk.green(`\nRegistering the new token symbol requires 250 POLY & deducted from '${Issuer}', Current balance is ${(await currentBalance())} POLY\n`));
-    tokenSymbol =  readlineSync.question('Enter the symbol for your new token: ');
-    await tickerRegistry.methods.getDetails(tokenSymbol).call({from: Issuer}, function(error, result){
-      if (new BigNumber(result[1]).toNumber() == 0) {
-        available = true;
-      } else if (result[0] == Issuer) {
-        console.log('\x1b[32m%s\x1b[0m',"Token Symbol has already been registered by you, skipping registration");
-        available = true;
-        alreadyRegistered = true;
-      } else {
-        console.log('\x1b[31m%s\x1b[0m',"Token Symbol has already been registered, please choose another symbol");
-      }
-    });
-  }
+    console.log(chalk.yellow(`\nRegistering the new token symbol requires ${regFee} POLY & deducted from '${Issuer.address}', Current balance is ${(web3.utils.fromWei(await polyToken.methods.balanceOf(Issuer.address).call()))} POLY\n`));
 
-  if (!alreadyRegistered) {
-    await step_approval(tickerRegistryAddress, regFee);
-    let registerTickerAction = tickerRegistry.methods.registerTicker(Issuer,tokenSymbol,"",web3.utils.asciiToHex(""));
-    let GAS = await common.estimateGas(registerTickerAction, Issuer, 1.2);
-    await registerTickerAction.send({ from: Issuer, gas: GAS, gasPrice: DEFAULT_GAS_PRICE})
-    .on('transactionHash', function(hash){
-      console.log(`
-        Congrats! Your Ticker Registeration tx populated successfully
-        Your transaction is being processed. Please wait...
-        TxHash: ${hash}\n`
-      );
-    })
-    .on('receipt', function(receipt){
-      console.log(`
-        Congratulations! The transaction was successfully completed.
-        Review it on Etherscan.
-        TxHash: ${receipt.transactionHash}\n`
-      );
-    })
-    .on('error', console.error);
+    if (typeof _ticker !== 'undefined') {
+      tokenSymbol = _ticker;
+      console.log(`Token Symbol: ${tokenSymbol}`);
+    } else {
+      tokenSymbol = await selectTicker();
+    }
+
+    let details = await securityTokenRegistry.methods.getTickerDetails(tokenSymbol).call();
+    if (new BigNumber(details[1]).toNumber() == 0) {
+      // If it has no registration date, it is available
+      available = true;
+      await approvePoly(securityTokenRegistryAddress, regFee);
+      let registerTickerAction = securityTokenRegistry.methods.registerTicker(Issuer.address, tokenSymbol, "");
+      await common.sendTransaction(registerTickerAction, { factor: 1.5 });
+    } else if (details[0] == Issuer.address) {
+      // If it has registration date and its owner is Issuer
+      available = true;
+      tokenLaunched = details[4];
+    } else {
+      // If it has registration date and its owner is not Issuer
+      console.log(chalk.yellow('\nToken Symbol has already been registered, please choose another symbol'));
+    }
   }
 }
 
-async function step_approval(spender, fee) {
-  polyBalance = await polyToken.methods.balanceOf(Issuer).call({from: Issuer});
-  let requiredAmount = web3.utils.toWei(fee.toString(), "ether");
+async function step_transfer_ticker_ownership(_transferOwnership) {
+  let newOwner = null;
+  if (typeof _transferOwnership !== 'undefined' && _transferOwnership != 'false') {
+    newOwner = _transferOwnership;
+    console.log(`Transfer ownership to: ${newOwner}`);
+  } else if (_transferOwnership != 'false' && readlineSync.keyInYNStrict(`Do you want to transfer the ownership of ${tokenSymbol} ticker?`)) {
+    newOwner = readlineSync.question('Enter the address that will be the new owner: ', {
+      limit: function (input) {
+        return web3.utils.isAddress(input);
+      },
+      limitMessage: "Must be a valid address"
+    });
+  }
+
+  if (newOwner) {
+    let transferTickerOwnershipAction = securityTokenRegistry.methods.transferTickerOwnership(newOwner, tokenSymbol);
+    let receipt = await common.sendTransaction(transferTickerOwnershipAction, { factor: 1.5 });
+    let event = common.getEventFromLogs(securityTokenRegistry._jsonInterface, receipt.logs, 'ChangeTickerOwnership');
+    console.log(chalk.green(`Ownership trasferred successfully. The new owner is ${event._newOwner}`));
+    process.exit(0);
+  }
+}
+
+async function step_token_deploy(_name, _details, _divisible) {
+  console.log(chalk.blue('\nToken Creation - Token Deployment'));
+
+  let launchFee = web3.utils.fromWei(await securityTokenRegistry.methods.getSecurityTokenLaunchFee().call());
+  console.log(chalk.green(`\nToken deployment requires ${launchFee} POLY & deducted from '${Issuer.address}', Current balance is ${(web3.utils.fromWei(await polyToken.methods.balanceOf(Issuer.address).call()))} POLY\n`));
+
+  let tokenName;
+  if (typeof _name !== 'undefined') {
+    tokenName = _name;
+    console.log(`Token Name: ${tokenName}`);
+  } else {
+    tokenName = readlineSync.question('Enter the name for your new token: ', { defaultInput: 'default' });
+  }
+
+  let tokenDetails;
+  if (typeof _details !== 'undefined') {
+    tokenDetails = _details;
+    console.log(`Token details: ${tokenDetails.toString()}`)
+  } else {
+    tokenDetails = readlineSync.question('Enter off-chain details of the token (i.e. Dropbox folder url): ');
+  }
+
+  let divisibility;
+  if (typeof _divisible !== 'undefined') {
+    divisibility = _divisible.toString() == 'true';
+    console.log(`Divisible: ${divisibility.toString()}`)
+  } else {
+    let divisible = readlineSync.question('Press "N" for Non-divisible type token or hit Enter for divisible type token (Default): ');
+    divisibility = (divisible != 'N' && divisible != 'n');
+  }
+
+  await approvePoly(securityTokenRegistryAddress, launchFee);
+  let generateSecurityTokenAction = securityTokenRegistry.methods.generateSecurityToken(tokenName, tokenSymbol, tokenDetails, divisibility);
+  let receipt = await common.sendTransaction(generateSecurityTokenAction);
+  let event = common.getEventFromLogs(securityTokenRegistry._jsonInterface, receipt.logs, 'NewSecurityToken');
+  console.log(chalk.green(`Security Token has been successfully deployed at address ${event._securityTokenAddress}`));
+}
+
+//////////////////////
+// HELPER FUNCTIONS //
+//////////////////////
+async function selectTicker() {
+  let result;
+  let userTickers = (await securityTokenRegistry.methods.getTickersByOwner(Issuer.address).call()).map(t => web3.utils.hexToAscii(t));
+  let options = await Promise.all(userTickers.map(async function (t) {
+    let tickerDetails = await securityTokenRegistry.methods.getTickerDetails(t).call();
+    let tickerInfo;
+    if (tickerDetails[4]) {
+      tickerInfo = `Token launched at ${(await securityTokenRegistry.methods.getSecurityTokenAddress(t).call())}`;
+    } else {
+      tickerInfo = `Expires at ${moment.unix(tickerDetails[2]).format('MMMM Do YYYY, HH:mm:ss')}`;
+    }
+    return `${t}
+    ${tickerInfo}`;
+  }));
+  options.push('Register a new ticker');
+
+  let index = readlineSync.keyInSelect(options, 'Select a ticker:');
+  if (index == -1) {
+    process.exit(0);
+  } else if (index == options.length - 1) {
+    result = readlineSync.question('Enter a symbol for your new ticker: ');
+  } else {
+    result = userTickers[index];
+  }
+
+  return result;
+}
+
+async function approvePoly(spender, fee) {
+  polyBalance = await polyToken.methods.balanceOf(Issuer.address).call();
+  let requiredAmount = web3.utils.toWei(fee.toString());
   if (parseInt(polyBalance) >= parseInt(requiredAmount)) {
-    let allowance = await polyToken.methods.allowance(spender, Issuer).call({from: Issuer});
-    if (allowance == web3.utils.toWei(fee.toString(), "ether")) {
+    let allowance = await polyToken.methods.allowance(Issuer.address, spender).call();
+    if (parseInt(allowance) >= parseInt(requiredAmount)) {
       return true;
     } else {
-      let approveAction = polyToken.methods.approve(spender, web3.utils.toWei(fee.toString(), "ether"));
-      let GAS = await common.estimateGas(approveAction, Issuer, 1.2);
-      await approveAction.send({from: Issuer, gas: GAS, gasPrice: DEFAULT_GAS_PRICE })
-      .on('receipt', function(receipt) {
-        return true;
-      })
-      .on('error', console.error);
+      let approveAction = polyToken.methods.approve(spender, requiredAmount);
+      await common.sendTransaction(approveAction);
     }
   } else {
-      let requiredBalance = parseInt(requiredAmount) - parseInt(polyBalance);
-      console.log(chalk.red(`\n*****************************************************************************************************************************************`));
-      console.log(chalk.red(`Not enough balance to Pay the Fee, Require ${(new BigNumber(requiredBalance).dividedBy(new BigNumber(10).pow(18))).toNumber()} POLY but have ${(new BigNumber(polyBalance).dividedBy(new BigNumber(10).pow(18))).toNumber()} POLY. Access POLY faucet to get the POLY to complete this txn`));
-      console.log(chalk.red(`******************************************************************************************************************************************\n`));
-      process.exit(0);
+    let requiredBalance = parseInt(requiredAmount) - parseInt(polyBalance);
+    console.log(chalk.red(`\n*****************************************************************************************************************************************`));
+    console.log(chalk.red(`Not enough balance to Pay the Fee, Require ${(new BigNumber(requiredBalance).dividedBy(new BigNumber(10).pow(18))).toNumber()} POLY but have ${(new BigNumber(polyBalance).dividedBy(new BigNumber(10).pow(18))).toNumber()} POLY. Access POLY faucet to get the POLY to complete this txn`));
+    console.log(chalk.red(`******************************************************************************************************************************************\n`));
+    process.exit(0);
   }
-}
-
-async function step_token_deploy(){
-  // Let's check if token has already been deployed, if it has, skip to STO
-  let tokenAddress = await securityTokenRegistry.methods.getSecurityTokenAddress(tokenSymbol).call({from: Issuer});
-  if (tokenAddress != "0x0000000000000000000000000000000000000000") {
-    console.log('\x1b[32m%s\x1b[0m',"Token has already been deployed at address " + tokenAddress + ". Skipping registration");
-    securityToken = new web3.eth.Contract(securityTokenABI, tokenAddress);
-  } else {
-    console.log("\n");
-    console.log(chalk.green(`Current balance in POLY is ${(await currentBalance())}`));
-    console.log("\n");
-    console.log('\x1b[34m%s\x1b[0m',"Token Creation - Token Deployment");
-    tokenName =  readlineSync.question('Enter the name for your new token: ');
-    if (tokenName == "") tokenName = 'default';
-    console.log("\n");
-    console.log('\x1b[34m%s\x1b[0m',"Select the Token divisibility type");
-    divisibile =  readlineSync.question('Press "N" for Non-divisible type token or hit Enter for divisible type token (Default):',{
-      defaultInput:'Y'
-    });
-
-    if(divisibile == 'N' || divisibile == 'n') {
-      divisibility = false;
-    }
-
-    await step_approval(securityTokenRegistryAddress, regFee);
-    let generateSecurityTokenAction = securityTokenRegistry.methods.generateSecurityToken(tokenName, tokenSymbol, web3.utils.fromAscii(tokenDetails), divisibility);
-    let GAS = await common.estimateGas(generateSecurityTokenAction, Issuer, 1.2);
-    await generateSecurityTokenAction.send({ from: Issuer, gas: GAS, gasPrice: DEFAULT_GAS_PRICE})
-    .on('transactionHash', function(hash){
-      console.log(`
-        Your transaction is being processed. Please wait...
-        TxHash: ${hash}\n`
-      );
-    })
-    .on('receipt', function(receipt){
-      console.log(`
-        Congratulations! The transaction was successfully completed.
-        Deployed Token at address: ${receipt.events.LogNewSecurityToken.returnValues._securityTokenAddress}
-        Review it on Etherscan.
-        TxHash: ${receipt.transactionHash}\n`
-      );
-      securityToken = new web3.eth.Contract(securityTokenABI, receipt.events.LogNewSecurityToken.returnValues._securityTokenAddress);
-    })
-    .on('error', console.error);
-  }
-}
-
-async function step_Wallet_Issuance(){
-  let result = await securityToken.methods.getModule(3,0).call({from: Issuer});
-  let STOAddress = result[1];
-  if (STOAddress != "0x0000000000000000000000000000000000000000") {
-    console.log('\x1b[32m%s\x1b[0m',"STO has already been created at address " + result[1] + ". Skipping initial minting");
-  } else {
-    let initialMint;
-    await securityToken.getPastEvents('Transfer', {
-      filter: {from: "0x0000000000000000000000000000000000000000"}, // Using an array means OR: e.g. 20 or 23
-      fromBlock: 0,
-      toBlock: 'latest'
-    }, function(error, events){
-      initialMint = events;
-    });
-    if(initialMint.length > 0){
-      console.log('\x1b[32m%s\x1b[0m',web3.utils.fromWei(initialMint[0].returnValues.value,"ether") +" Tokens have already been minted for "+initialMint[0].returnValues.to+". Skipping initial minting");
-    } else {
-      console.log("\n");
-      console.log('\x1b[34m%s\x1b[0m',"Token Creation - Token Minting for Issuer");
-
-      console.log("Before setting up the STO, you can mint any amount of tokens that will remain under your control or you can trasfer to affiliates");
-      let isaffiliate =  readlineSync.question('Press'+ chalk.green(` "Y" `) + 'if you have list of affiliates addresses with you otherwise hit' + chalk.green(' Enter ') + 'and get the minted tokens to a particular address: ');
-
-      if (isaffiliate == "Y" || isaffiliate == "y")
-        await multi_mint_tokens();
-      else {
-        let mintWallet =  readlineSync.question('Add the address that will hold the issued tokens to the whitelist ('+Issuer+'): ');
-        if(mintWallet == "") mintWallet = Issuer;
-        let canBuyFromSTO = readlineSync.keyInYNStrict(`Is address '(${mintWallet})' allowed to buy tokens from the STO? `);
-
-        // Add address to whitelist
-        let generalTransferManagerAddress;
-        await securityToken.methods.getModule(2,0).call({from: Issuer}, function(error, result){
-          generalTransferManagerAddress = result[1];
-        });
-
-        let generalTransferManager = new web3.eth.Contract(generalTransferManagerABI,generalTransferManagerAddress);
-        let modifyWhitelistAction = generalTransferManager.methods.modifyWhitelist(mintWallet,Math.floor(Date.now()/1000),Math.floor(Date.now()/1000),Math.floor(Date.now()/1000 + 31536000), canBuyFromSTO);
-        let GAS = await common.estimateGas(modifyWhitelistAction, Issuer, 1.2);
-        await modifyWhitelistAction.send({ from: Issuer, gas: GAS, gasPrice:DEFAULT_GAS_PRICE})
-        .on('transactionHash', function(hash){
-          console.log(`
-            Adding wallet to whitelist. Please wait...
-            TxHash: ${hash}\n`
-          );
-        })
-        .on('receipt', function(receipt){
-          console.log(`
-            Congratulations! The transaction was successfully completed.
-            Review it on Etherscan.
-            TxHash: ${receipt.transactionHash}\n`
-          );
-        })
-        .on('error', console.error);
-
-        // Mint tokens
-        issuerTokens =  readlineSync.question('How many tokens do you plan to mint for the wallet you entered? (500.000): ');
-        if(issuerTokens == "") issuerTokens = '500000';
-        let mintAction = securityToken.methods.mint(mintWallet, web3.utils.toWei(issuerTokens,"ether"));
-        GAS = await common.estimateGas(mintAction, Issuer, 1.2);
-        await mintAction.send({ from: Issuer, gas: GAS, gasPrice:DEFAULT_GAS_PRICE})
-        .on('transactionHash', function(hash){
-          console.log(`
-            Minting tokens. Please wait...
-            TxHash: ${hash}\n`
-          );
-        })
-        .on('receipt', function(receipt){
-          console.log(`
-            Congratulations! The transaction was successfully completed.
-            Review it on Etherscan.
-            TxHash: ${receipt.transactionHash}\n`
-          );
-        })
-        .on('error', console.error);
-      }
-    }
-  }
-}
-
-async function multi_mint_tokens() {
-  //await whitelist.startWhitelisting(tokenSymbol);
-  shell.exec(`${__dirname}/scripts/minting.sh Whitelist ${tokenSymbol} 75`);
-  console.log(chalk.green(`\nCongrats! All the affiliates get succssfully whitelisted, Now its time to Mint the tokens\n`));
-  console.log(chalk.red(`WARNING: `) + `Please make sure all the addresses that get whitelisted are only eligible to hold or get Security token\n`);
-
-  shell.exec(`${__dirname}/scripts//minting.sh Multimint ${tokenSymbol} 75`);
-  console.log(chalk.green(`\nHurray!! Tokens get successfully Minted and transfered to token holders`));
-}
-
-async function step_STO_Status() {
-  let displayStartTime = await cappedSTO.methods.startTime().call({from: Issuer});
-  let displayEndTime = await cappedSTO.methods.endTime().call({from: Issuer});
-  let displayRate = await cappedSTO.methods.rate().call({from: Issuer});
-  let displayCap = await cappedSTO.methods.cap().call({from: Issuer});
-  let displayWallet = await cappedSTO.methods.wallet().call({from: Issuer});
-  let displayRaiseType = await cappedSTO.methods.fundraiseType().call({from: Issuer}) == 0 ? 'ETH' : 'POLY';
-  let displayFundsRaised = await cappedSTO.methods.fundsRaised().call({from: Issuer});
-  let displayTokensSold = await cappedSTO.methods.tokensSold().call({from: Issuer});
-  let displayInvestorCount = await cappedSTO.methods.investorCount().call({from: Issuer});
-  let displayTokenSymbol = await securityToken.methods.symbol().call({from: Issuer});
-
-  let displayWalletBalance = web3.utils.fromWei(await web3.eth.getBalance(displayWallet),"ether");
-  let formattedCap = BigNumber(web3.utils.fromWei(displayCap,"ether"));
-  let formattedSold = BigNumber(web3.utils.fromWei(displayTokensSold,"ether"));
-
-  let now = Math.floor(Date.now()/1000);
-  let timeTitle;
-
-  if (now < displayStartTime) {
-    timeTitle = "STO starts in: ";
-    timeRemaining = displayStartTime - now;
-  } else {
-    timeTitle = "Time remaining:";
-    timeRemaining = displayEndTime - now;
-  }
-
-  timeRemaining = common.convertToDaysRemaining(timeRemaining);
-
-  console.log(`
-    ***** STO Information *****
-    - Raise Cap:         ${web3.utils.fromWei(displayCap,"ether")} ${displayTokenSymbol.toUpperCase()}
-    - Start Time:        ${new Date(displayStartTime * 1000)}
-    - End Time:          ${new Date(displayEndTime * 1000)}
-    - Raise Type:        ${displayRaiseType}
-    - Rate:              1 ${displayRaiseType} = ${displayRate} ${displayTokenSymbol.toUpperCase()}
-    - Wallet:            ${displayWallet}
-    - Wallet Balance:    ${displayWalletBalance} ${displayRaiseType}
-    --------------------------------------
-    - ${timeTitle}    ${timeRemaining}
-    - Funds raised:      ${web3.utils.fromWei(displayFundsRaised,"ether")} ${displayRaiseType}
-    - Tokens sold:       ${web3.utils.fromWei(displayTokensSold,"ether")} ${displayTokenSymbol.toUpperCase()}
-    - Tokens remaining:  ${formattedCap.minus(formattedSold).toNumber()} ${displayTokenSymbol.toUpperCase()}
-    - Investor count:    ${displayInvestorCount}
-  `);
-
-  console.log(chalk.green(`\n${(await currentBalance())} POLY balance remaining at issuer address ${Issuer}`));
-  console.log("FINISHED");
-}
-
-async function step_STO_Launch() {
-  let result = await securityToken.methods.getModule(3,0).call({from: Issuer});
-  let STO_Address = result[1];
-  if(STO_Address != "0x0000000000000000000000000000000000000000") {
-    console.log('\x1b[32m%s\x1b[0m',"STO has already been created at address " + STO_Address + ". Skipping STO creation");
-  } else {
-    console.log("\n");
-    console.log('\x1b[34m%s\x1b[0m',"Token Creation - STO Configuration (Capped STO in No. of Tokens)");
-
-    cap =  readlineSync.question('How many tokens do you plan to sell on the STO? (500.000): ');
-    startTime =  readlineSync.question('Enter the start time for the STO (Unix Epoch time)\n(1 minutes from now = '+(Math.floor(Date.now()/1000)+60)+' ): ');
-    endTime =  readlineSync.question('Enter the end time for the STO (Unix Epoch time)\n(1 month from now = '+(Math.floor(Date.now()/1000)+ (30 * 24 * 60 * 60))+' ): ');
-    wallet =  readlineSync.question('Enter the address that will receive the funds from the STO (' + Issuer + '): ');
-    raiseType = readlineSync.question('Enter' + chalk.green(` P `) + 'for POLY raise or leave empty for Ether raise (E):');
-
-    if(cap == "") cap = '500000';
-    if(startTime == "") startTime = BigNumber((Math.floor(Date.now()/1000)+60));
-    if(endTime == "") endTime = BigNumber((Math.floor(Date.now()/1000)+ (30 * 24 * 60 * 60)));
-    if(wallet == "") wallet = Issuer;
-    if (raiseType.toUpperCase() == 'P' ) {
-      raiseType = 1;
-    } else {
-      raiseType = 0;
-    }
-    if (raiseType) {
-      rate = readlineSync.question('Enter the rate (1 POLY = X ST) for the STO (1000): ');
-    } else {
-      rate = readlineSync.question('Enter the rate (1 ETH = X ST) for the STO (1000): ');
-    }
-    if (rate == "") rate = BigNumber(1000);
-
-    let bytesSTO = web3.eth.abi.encodeFunctionCall( {
-      name: 'configure',
-      type: 'function',
-      inputs: [
-        {
-          type: 'uint256',
-          name: '_startTime'
-        },{
-          type: 'uint256',
-          name: '_endTime'
-        },{
-          type: 'uint256',
-          name: '_cap'
-        },{
-          type: 'uint256',
-          name: '_rate'
-        },{
-          type: 'uint8',
-          name: '_fundRaiseType'
-        },{
-          type: 'address',
-          name: '_fundsReceiver'
-        }
-      ]
-    }, [startTime, endTime, web3.utils.toWei(cap, 'ether'), rate, raiseType, wallet]);
-
-    let contractBalance = await polyToken.methods.balanceOf(securityToken._address).call({from: Issuer});
-    let requiredAmount = web3.utils.toWei(stoFee.toString(), "ether");
-    if (parseInt(contractBalance) < parseInt(requiredAmount)) {
-      let transferAmount = parseInt(requiredAmount) - parseInt(contractBalance);
-      let ownerBalance = await polyToken.methods.balanceOf(Issuer).call({from: Issuer});
-      if(parseInt(ownerBalance) < transferAmount) {
-        console.log(chalk.red(`\n**************************************************************************************************************************************************`));
-        console.log(chalk.red(`Not enough balance to pay the CappedSTO fee, Requires ${(new BigNumber(transferAmount).dividedBy(new BigNumber(10).pow(18))).toNumber()} POLY but have ${(new BigNumber(ownerBalance).dividedBy(new BigNumber(10).pow(18))).toNumber()} POLY. Access POLY faucet to get the POLY to complete this txn`));
-        console.log(chalk.red(`**************************************************************************************************************************************************\n`));
-        process.exit(0);
-      } else {
-        let transferAction = polyToken.methods.transfer(securityToken._address, new BigNumber(transferAmount));
-        let GAS = await common.estimateGas(transferAction, Issuer, 1.5);
-        await transferAction.send({from: Issuer, gas: GAS, gasPrice: DEFAULT_GAS_PRICE})
-        .on('transactionHash', function(hash) {
-          console.log(`
-            Transfer ${(new BigNumber(transferAmount).dividedBy(new BigNumber(10).pow(18))).toNumber()} POLY to ${tokenSymbol} security token
-            Your transaction is being processed. Please wait...
-            TxHash: ${hash}\n`
-          );
-        })
-        .on('receipt', function(receipt){
-          console.log(`
-            Congratulations! The transaction was successfully completed.
-            Number of POLY sent: ${(new BigNumber(receipt.events.Transfer.returnValues._value).dividedBy(new BigNumber(10).pow(18))).toNumber()}
-            Review it on Etherscan.
-            TxHash: ${receipt.transactionHash}
-            gasUsed: ${receipt.gasUsed}\n`
-          );
-        })
-        .on('error', console.error);
-      }
-    }
-    let addModuleAction = securityToken.methods.addModule(cappedSTOFactoryAddress, bytesSTO, new BigNumber(stoFee).times(new BigNumber(10).pow(18)), 0);
-    let GAS = await common.estimateGas(addModuleAction, Issuer, 1.2);
-    await securityToken.methods.addModule(cappedSTOFactoryAddress, bytesSTO, new BigNumber(stoFee).times(new BigNumber(10).pow(18)), 0).send({from: Issuer, gas: GAS, gasPrice:DEFAULT_GAS_PRICE})
-    .on('transactionHash', function(hash){
-      console.log(`
-        Your transaction is being processed. Please wait...
-        TxHash: ${hash}\n`
-      );
-    })
-    .on('receipt', function(receipt){
-        STO_Address = receipt.events.LogModuleAdded.returnValues._module
-      console.log(`
-        Congratulations! The transaction was successfully completed.
-        STO deployed at address: ${STO_Address}
-        Review it on Etherscan.
-        TxHash: ${receipt.transactionHash}\n`
-      );
-    })
-    .on('error', console.error);
-    //console.log("aaa",receipt.logs[1].args._securityTokenAddress);
-  }
-
-  cappedSTO = new web3.eth.Contract(cappedSTOABI,STO_Address);
-}
-
-///////
-// HELPER FUNCTIONS
-//////
-async function currentBalance() {
-    let balance = await polyToken.methods.balanceOf(Issuer).call();
-    let balanceInPoly = new BigNumber(balance).dividedBy(new BigNumber(10).pow(18));
-    return balanceInPoly;
 }
 
 module.exports = {
-  executeApp: async function() {
-        return executeApp();
-    }
+  executeApp: async function (ticker, transferOwnership, name, details, divisible) {
+    return executeApp(ticker, transferOwnership, name, details, divisible);
+  }
 }
